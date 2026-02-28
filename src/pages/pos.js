@@ -13,6 +13,86 @@ function formatCurrency(amount) {
   }).format(amount);
 }
 
+function printReceiptPDF(sale) {
+  if (!sale) return;
+
+  const saleDate = sale.sale_date ? new Date(sale.sale_date) : new Date();
+  const receiptNo = sale.invoice_number || `SALE-${sale.sale_id}`;
+  const subtotal = Number(sale.subtotal ?? sale.total_amount ?? 0);
+  const discount = Number(sale.discount ?? 0);
+  const totalAmount = Number(sale.total_amount ?? subtotal - discount);
+  const amountPaid = Number(sale.amount_paid ?? totalAmount);
+  const changeAmount = Number(sale.change_amount ?? Math.max(0, amountPaid - totalAmount));
+  const receiptRemarks = (sale.remarks || sale.notes || '').trim();
+  const handledBy = sale.handled_by?.full_name || sale.handled_by?.username || 'Unknown User';
+  const deliveryInfo = sale.delivery?.[0] || null;
+  const items = sale.sale_details || [];
+
+  const rows = items.map((item) => {
+    const productName = item.products?.product_name || item.product?.product_name || 'Item';
+    const quantity = Number(item.quantity || 0);
+    const unitPrice = Number(item.unit_price || 0);
+    const lineTotal = Number(item.subtotal ?? quantity * unitPrice);
+
+    return `
+      <tr>
+        <td style="padding:6px 0;">${productName}</td>
+        <td style="padding:6px 0;text-align:right;">${quantity}</td>
+        <td style="padding:6px 0;text-align:right;">${formatCurrency(unitPrice)}</td>
+        <td style="padding:6px 0;text-align:right;">${formatCurrency(lineTotal)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const html = `
+    <!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Receipt ${receiptNo}</title>
+      </head>
+      <body style="font-family:Arial,Helvetica,sans-serif;padding:24px;max-width:720px;margin:auto;color:#000;">
+        <h2 style="margin:0 0 4px 0;">AgriVet Store</h2>
+        <div style="margin-bottom:16px;font-size:12px;">Official Receipt</div>
+        <div style="font-size:12px;margin-bottom:2px;">Date: ${saleDate.toLocaleString('en-PH')}</div>
+        <div style="font-size:12px;margin-bottom:16px;">Receipt No: ${receiptNo}</div>
+        <div style="font-size:12px;margin-bottom:2px;">Handled By: ${handledBy}</div>
+        <div style="font-size:12px;margin-bottom:2px;">Order Type: ${deliveryInfo ? 'DELIVERY' : 'PICKUP'}</div>
+        ${deliveryInfo?.delivery_address ? `<div style="font-size:12px;margin-bottom:16px;">Address: ${deliveryInfo.delivery_address}</div>` : '<div style="margin-bottom:16px;"></div>'}
+        <table style="width:100%;border-collapse:collapse;font-size:12px;border-top:1px solid #000;border-bottom:1px solid #000;">
+          <thead>
+            <tr>
+              <th style="text-align:left;padding:8px 0;">Item</th>
+              <th style="text-align:right;padding:8px 0;">Qty</th>
+              <th style="text-align:right;padding:8px 0;">Price</th>
+              <th style="text-align:right;padding:8px 0;">Total</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div style="margin-top:16px;font-size:12px;">
+          <div style="display:flex;justify-content:space-between;"><span>Subtotal</span><span>${formatCurrency(subtotal)}</span></div>
+          ${discount > 0 ? `<div style="display:flex;justify-content:space-between;"><span>Discount</span><span>-${formatCurrency(discount)}</span></div>` : ''}
+          <div style="display:flex;justify-content:space-between;font-weight:700;margin-top:6px;"><span>Total</span><span>${formatCurrency(totalAmount)}</span></div>
+          <div style="display:flex;justify-content:space-between;"><span>Amount Paid</span><span>${formatCurrency(amountPaid)}</span></div>
+          <div style="display:flex;justify-content:space-between;"><span>Change</span><span>${formatCurrency(changeAmount)}</span></div>
+        </div>
+        ${receiptRemarks ? `<div style="margin-top:12px;font-size:12px;"><strong>Remarks:</strong> ${receiptRemarks}</div>` : ''}
+      </body>
+    </html>
+  `;
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) return;
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => {
+    printWindow.print();
+  }, 200);
+}
+
 export default function POSPage() {
   // State
   const [searchQuery, setSearchQuery] = useState('');
@@ -20,8 +100,12 @@ export default function POSPage() {
   const [cart, setCart] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [orderType, setOrderType] = useState('PICKUP');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryDate, setDeliveryDate] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [amountTendered, setAmountTendered] = useState('');
+  const [remarks, setRemarks] = useState('');
   const [discount, setDiscount] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
@@ -177,8 +261,12 @@ export default function POSPage() {
   const clearCart = () => {
     setCart([]);
     setSelectedCustomer(null);
+    setOrderType('PICKUP');
+    setDeliveryAddress('');
+    setDeliveryDate('');
     setPaymentMethod('CASH');
     setAmountTendered('');
+    setRemarks('');
     setDiscount(0);
     searchInputRef.current?.focus();
   };
@@ -195,11 +283,24 @@ export default function POSPage() {
       return;
     }
 
+    if (orderType === 'DELIVERY' && !deliveryAddress.trim()) {
+      toast.error('Delivery address is required for delivery orders');
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
       const saleData = {
         customerId: selectedCustomer?.customer_id || null,
+        processType: orderType === 'DELIVERY' ? 'PO' : 'Walk-in',
+        delivery: orderType === 'DELIVERY'
+          ? {
+              address: deliveryAddress.trim(),
+              date: deliveryDate || null,
+              status: 'PENDING'
+            }
+          : null,
         items: cart.map(item => ({
           productId: item.product_id,
           quantity: item.quantity,
@@ -207,7 +308,8 @@ export default function POSPage() {
         })),
         discount,
         amountPaid: paymentMethod === 'CREDIT' ? 0 : parseFloat(amountTendered || total),
-        paymentMethod
+        paymentMethod,
+        notes: remarks.trim() || null
       };
 
       const res = await fetch('/api/sales', {
@@ -222,6 +324,7 @@ export default function POSPage() {
         toast.success('Sale completed!');
         setLastSale(data.sale);
         setShowReceipt(true);
+        printReceiptPDF(data.sale);
         clearCart();
         loadTodaySummary();
       } else {
@@ -242,7 +345,7 @@ export default function POSPage() {
     <ProtectedRoute requiredRole="CASHIER">
       <Toaster position="top-right" />
       
-      <div className="h-[calc(100vh-8rem)] flex gap-4">
+      <div className="h-[calc(100vh-8rem)] flex gap-4 overflow-hidden">
         {/* Left Panel - Product Search & Cart */}
         <div className="flex-1 flex flex-col bg-white rounded-xl shadow-sm overflow-hidden">
           {/* Search Bar */}
@@ -272,12 +375,12 @@ export default function POSPage() {
                     className="w-full px-4 py-3 text-left hover:bg-gray-50 flex justify-between items-center border-b last:border-b-0"
                   >
                     <div>
-                      <p className="font-medium text-gray-900">{product.product_name}</p>
-                      <p className="text-sm text-gray-500">{product.product_code} • {product.barcode || 'No barcode'}</p>
+                      <p className="font-medium text-black">{product.product_name}</p>
+                      <p className="text-sm text-black">{product.product_code} • {product.barcode || 'No barcode'}</p>
                     </div>
                     <div className="text-right">
                       <p className="font-semibold text-green-600">{formatCurrency(product.selling_price)}</p>
-                      <p className={`text-sm ${product.in_stock ? 'text-gray-500' : 'text-red-500'}`}>
+                      <p className={`text-sm ${product.in_stock ? 'text-black' : 'text-red-500'}`}>
                         {product.total_stock} {product.unit}
                       </p>
                     </div>
@@ -299,7 +402,7 @@ export default function POSPage() {
               </div>
             ) : (
               <table className="w-full">
-                <thead className="text-left text-sm text-gray-500 border-b">
+                <thead className="text-left text-sm text-black border-b">
                   <tr>
                     <th className="pb-2">Product</th>
                     <th className="pb-2 text-center w-32">Qty</th>
@@ -313,7 +416,7 @@ export default function POSPage() {
                     <tr key={item.product_id} className="border-b">
                       <td className="py-3">
                         <p className="font-medium">{item.product_name}</p>
-                        <p className="text-sm text-gray-500">{item.product_code}</p>
+                        <p className="text-sm text-black">{item.product_code}</p>
                       </td>
                       <td className="py-3">
                         <div className="flex items-center justify-center">
@@ -360,7 +463,7 @@ export default function POSPage() {
         </div>
 
         {/* Right Panel - Payment */}
-        <div className="w-96 flex flex-col bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="w-96 flex flex-col bg-white rounded-xl shadow-sm overflow-y-auto min-h-0">
           {/* Today's Summary */}
           {todaySummary && (
             <div className="p-4 bg-green-50 border-b">
@@ -372,7 +475,7 @@ export default function POSPage() {
 
           {/* Customer Selection */}
           <div className="p-4 border-b">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Customer</label>
+            <label className="block text-sm font-medium text-black mb-2">Customer</label>
             <select
               value={selectedCustomer?.customer_id || ''}
               onChange={(e) => {
@@ -393,11 +496,11 @@ export default function POSPage() {
           {/* Totals */}
           <div className="p-4 border-b space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Subtotal</span>
+              <span className="text-black">Subtotal</span>
               <span>{formatCurrency(subtotal)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Discount</span>
+              <span className="text-black">Discount</span>
               <input
                 type="number"
                 value={discount}
@@ -411,9 +514,45 @@ export default function POSPage() {
             </div>
           </div>
 
+          <div className="p-4 border-b">
+            <label className="block text-sm font-medium text-black mb-2">Order Type</label>
+            <div className="grid grid-cols-2 gap-2">
+              {['PICKUP', 'DELIVERY'].map(type => (
+                <button
+                  key={type}
+                  onClick={() => setOrderType(type)}
+                  className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                    orderType === type
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-100 text-black hover:bg-gray-200'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+            {orderType === 'DELIVERY' && (
+              <div className="mt-3 space-y-2">
+                <input
+                  type="text"
+                  value={deliveryAddress}
+                  onChange={(e) => setDeliveryAddress(e.target.value)}
+                  placeholder="Delivery address"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-black"
+                />
+                <input
+                  type="date"
+                  value={deliveryDate}
+                  onChange={(e) => setDeliveryDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-black"
+                />
+              </div>
+            )}
+          </div>
+
           {/* Payment Method */}
           <div className="p-4 border-b">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
+            <label className="block text-sm font-medium text-black mb-2">Payment Method</label>
             <div className="flex gap-2">
               {['CASH', 'CREDIT', 'MIXED'].map(method => (
                 <button
@@ -422,7 +561,7 @@ export default function POSPage() {
                   className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
                     paymentMethod === method
                       ? 'bg-green-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      : 'bg-gray-100 text-black hover:bg-gray-200'
                   }`}
                 >
                   {method}
@@ -434,7 +573,7 @@ export default function POSPage() {
           {/* Amount Tendered */}
           {paymentMethod !== 'CREDIT' && (
             <div className="p-4 border-b">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Amount Tendered</label>
+              <label className="block text-sm font-medium text-black mb-2">Amount Tendered</label>
               <input
                 type="number"
                 value={amountTendered}
@@ -458,12 +597,25 @@ export default function POSPage() {
 
               {parseFloat(amountTendered || 0) >= total && (
                 <div className="mt-3 p-3 bg-green-50 rounded-lg">
-                  <p className="text-sm text-gray-500">Change</p>
+                  <p className="text-sm text-black">Change</p>
                   <p className="text-2xl font-bold text-green-600">{formatCurrency(change)}</p>
                 </div>
               )}
             </div>
           )}
+
+          {/* Remarks */}
+          <div className="p-4 border-b">
+            <label className="block text-sm font-medium text-black mb-2">Remarks (optional)</label>
+            <textarea
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              rows={2}
+              maxLength={255}
+              placeholder="Add note to print on receipt..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-black focus:ring-2 focus:ring-green-500"
+            />
+          </div>
 
           {/* Action Buttons */}
           <div className="mt-auto p-4 space-y-2">
@@ -491,7 +643,7 @@ export default function POSPage() {
             </button>
             <button
               onClick={clearCart}
-              className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors"
+              className="w-full py-3 bg-gray-100 hover:bg-gray-200 text-black font-medium rounded-lg transition-colors"
             >
               Clear Cart
             </button>
@@ -507,22 +659,33 @@ export default function POSPage() {
               {/* Receipt Header */}
               <div className="text-center border-b pb-4 mb-4">
                 <h2 className="text-xl font-bold">AgriVet Store</h2>
-                <p className="text-sm text-gray-500">Official Receipt</p>
-                <p className="text-sm text-gray-500 mt-2">
+                <p className="text-sm text-black">Official Receipt</p>
+                <p className="text-sm text-black mt-2">
                   {new Date(lastSale.sale_date).toLocaleString('en-PH')}
                 </p>
                 <p className="font-mono text-sm mt-1">{lastSale.invoice_number}</p>
+                <p className="text-sm text-black mt-1">
+                  Handled By: {lastSale.handled_by?.full_name || lastSale.handled_by?.username || 'Unknown User'}
+                </p>
+                <p className="text-sm text-black mt-1">
+                  Order Type: {lastSale.delivery?.length ? 'DELIVERY' : 'PICKUP'}
+                </p>
+                {lastSale.delivery?.length > 0 && (
+                  <p className="text-sm text-black mt-1">
+                    Address: {lastSale.delivery[0]?.delivery_address}
+                  </p>
+                )}
               </div>
 
               {/* Items */}
               <div className="space-y-2 border-b pb-4 mb-4">
-                {lastSale.sale_details.map((item, idx) => (
+                {(lastSale.sale_details || []).map((item, idx) => (
                   <div key={idx} className="flex justify-between text-sm">
                     <div>
-                      <p>{item.product.product_name}</p>
-                      <p className="text-gray-500">{item.quantity} x {formatCurrency(item.unit_price)}</p>
+                      <p>{item.products?.product_name || item.product?.product_name || 'Item'}</p>
+                      <p className="text-black">{item.quantity} x {formatCurrency(item.unit_price || 0)}</p>
                     </div>
-                    <p className="font-medium">{formatCurrency(item.subtotal)}</p>
+                    <p className="font-medium">{formatCurrency(item.subtotal ?? ((item.quantity || 0) * (item.unit_price || 0)))}</p>
                   </div>
                 ))}
               </div>
@@ -551,10 +714,16 @@ export default function POSPage() {
                   <span>Change</span>
                   <span>{formatCurrency(lastSale.change_amount)}</span>
                 </div>
+                {(lastSale.remarks || '').trim() && (
+                  <div className="pt-2 border-t mt-2">
+                    <span className="font-medium">Remarks:</span>
+                    <p className="text-black mt-1">{lastSale.remarks}</p>
+                  </div>
+                )}
               </div>
 
               {/* Footer */}
-              <div className="mt-6 pt-4 border-t text-center text-sm text-gray-500">
+              <div className="mt-6 pt-4 border-t text-center text-sm text-black">
                 <p>Thank you for your purchase!</p>
                 <p>Please come again</p>
               </div>

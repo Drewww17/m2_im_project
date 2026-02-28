@@ -63,6 +63,7 @@ model employees {
   purchase_orders purchase_orders[]
   sales           sales[]
   stock_log       stock_log[]
+  supply          supply[]
 }
 
 model inventory {
@@ -108,6 +109,7 @@ model products {
   purchase_order_details purchase_order_details[]
   sale_details           sale_details[]
   stock_log              stock_log[]
+  supply_details         supply_details[]
 
   @@index([supplier_id], map: "fk_products_supplier")
 }
@@ -133,6 +135,7 @@ model purchase_orders {
   handled_by             Int?
   remarks                String?                  @db.VarChar(255)
   purchase_order_details purchase_order_details[]
+  PO_sales               PO_sales[]
   customers              customers?               @relation(fields: [customer_id], references: [customer_id], onDelete: Restrict, onUpdate: Restrict, map: "fk_po_customer")
   employees              employees?               @relation(fields: [handled_by], references: [employee_id], onDelete: Restrict, onUpdate: Restrict, map: "fk_po_employee")
 
@@ -158,6 +161,7 @@ model sales {
   sale_date      DateTime         @db.Date
   sale_status    String?          @db.VarChar(50)
   process_type   String?          @db.VarChar(50)
+  remarks        String?          @db.VarChar(255)
   customer_id    Int?
   employee_id    Int?
   sale_type      sales_sale_type? @default(regular)
@@ -169,6 +173,7 @@ model sales {
   total_amount   Decimal?         @default(0.00) @db.Decimal(15, 2)
   delivery       delivery[]
   sale_details   sale_details[]
+  PO_sales       PO_sales[]
   customers      customers?       @relation(fields: [customer_id], references: [customer_id], onDelete: Restrict, onUpdate: Restrict, map: "fk_sales_customer")
   employees      employees?       @relation(fields: [employee_id], references: [employee_id], onDelete: Restrict, onUpdate: Restrict, map: "fk_sales_employee")
 
@@ -192,13 +197,65 @@ model stock_log {
 }
 
 model suppliers {
-  supplier_id     Int        @id @default(autoincrement())
-  supplier_name   String     @unique(map: "unique_supplier_name") @db.VarChar(255)
-  contact_number  String?    @db.VarChar(50)
-  is_active       Boolean?   @default(true)
-  created_at      DateTime?  @default(now()) @db.DateTime(0)
-  payable_balance Decimal?   @default(0.00) @db.Decimal(15, 2)
+  supplier_id     Int              @id @default(autoincrement())
+  supplier_name   String           @unique(map: "unique_supplier_name") @db.VarChar(255)
+  contact_number  String?          @db.VarChar(50)
+  is_active       Boolean?         @default(true)
+  created_at      DateTime?        @default(now()) @db.DateTime(0)
+  payable_balance Decimal?         @default(0.00) @db.Decimal(15, 2)
   products        products[]
+  supply          supply[]
+}
+
+model PO_sales {
+  PO_sales_id     Int               @id @default(autoincrement())
+  sales_id        Int?
+  PO_id           Int?
+  sales           sales?            @relation(fields: [sales_id], references: [sale_id], onDelete: Restrict, onUpdate: Restrict)
+  purchase_orders purchase_orders?  @relation(fields: [PO_id], references: [po_id], onDelete: Restrict, onUpdate: Restrict)
+  customer_credit customer_credit[]
+
+  @@index([sales_id], map: "fk_po_sales_sale")
+  @@index([PO_id], map: "fk_po_sales_po")
+}
+
+model customer_credit {
+  credit_id         Int       @id @default(autoincrement())
+  PO_sale_id        Int?
+  credit_amountpaid Decimal?  @db.Decimal(15, 2)
+  last_payment_date DateTime? @db.Date
+  type_payment      Int?
+  PO_sales          PO_sales? @relation(fields: [PO_sale_id], references: [PO_sales_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([PO_sale_id], map: "fk_credit_po_sale")
+}
+
+model supply {
+  supply_id      Int              @id @default(autoincrement())
+  supply_date    DateTime?        @db.Date
+  employee_id    Int?
+  supplier_id    Int?
+  total          Decimal?         @db.Decimal(15, 2)
+  employees      employees?       @relation(fields: [employee_id], references: [employee_id], onDelete: Restrict, onUpdate: Restrict)
+  suppliers      suppliers?       @relation(fields: [supplier_id], references: [supplier_id], onDelete: Restrict, onUpdate: Restrict)
+  supply_details supply_details[]
+
+  @@index([employee_id], map: "fk_supply_employee")
+  @@index([supplier_id], map: "fk_supply_supplier")
+}
+
+model supply_details {
+  supply_detail_id Int       @id @default(autoincrement())
+  supply_id        Int?
+  product_id       Int?
+  unit_type        String?   @db.VarChar(50)
+  unit_quantity    Int?
+  unit_cost        Decimal?  @db.Decimal(15, 2)
+  supply           supply?   @relation(fields: [supply_id], references: [supply_id], onDelete: Restrict, onUpdate: Restrict)
+  products         products? @relation(fields: [product_id], references: [product_id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([supply_id], map: "fk_supply_detail_supply")
+  @@index([product_id], map: "fk_supply_detail_product")
 }
 
 model users {

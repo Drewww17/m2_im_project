@@ -156,7 +156,7 @@ export default function Products() {
   };
 
   return (
-    <ProtectedRoute requiredRole="CLERK">
+    <ProtectedRoute requiredRole="CASHIER">
       <Layout>
         <div className="space-y-6">
           <div className="flex justify-between items-center">
@@ -179,13 +179,13 @@ export default function Products() {
                 placeholder="Search products..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-black placeholder:text-gray-400"
               />
             </div>
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-black"
             >
               <option value="">All Categories</option>
               {categories.map(cat => (
@@ -288,33 +288,33 @@ export default function Products() {
               </h2>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Name *</label>
+                  <label className="block text-sm font-medium text-black">Name *</label>
                   <input
                     type="text"
                     required
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                    className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-black"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Barcode</label>
+                  <label className="block text-sm font-medium text-black">Barcode</label>
                   <input
                     type="text"
                     value={formData.barcode}
                     onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-                    className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                    className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-black"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Category</label>
+                    <label className="block text-sm font-medium text-black">Category</label>
                     <input
                       type="text"
                       value={formData.category}
                       onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                       list="categories"
-                      className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                      className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-black"
                     />
                     <datalist id="categories">
                       {categories.map(cat => (
@@ -323,57 +323,57 @@ export default function Products() {
                     </datalist>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Unit</label>
+                    <label className="block text-sm font-medium text-black">Unit</label>
                     <input
                       type="text"
                       value={formData.unit}
                       onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                       placeholder="e.g., pcs, kg, L"
-                      className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                      className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-black placeholder:text-gray-400"
                     />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Cost Price *</label>
+                    <label className="block text-sm font-medium text-black">Cost Price *</label>
                     <input
                       type="number"
                       step="0.01"
                       required
                       value={formData.cost_price}
                       onChange={(e) => setFormData({ ...formData, cost_price: e.target.value })}
-                      className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                      className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-black"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Selling Price *</label>
+                    <label className="block text-sm font-medium text-black">Selling Price *</label>
                     <input
                       type="number"
                       step="0.01"
                       required
                       value={formData.selling_price}
                       onChange={(e) => setFormData({ ...formData, selling_price: e.target.value })}
-                      className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                      className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-black"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Reorder Level</label>
+                  <label className="block text-sm font-medium text-black">Reorder Level</label>
                   <input
                     type="number"
                     value={formData.reorder_level}
                     onChange={(e) => setFormData({ ...formData, reorder_level: e.target.value })}
                     placeholder="Default: 10"
-                    className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                    className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-black placeholder:text-gray-400"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Description</label>
+                  <label className="block text-sm font-medium text-black">Description</label>
                   <textarea
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     rows={3}
-                    className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                    className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-black"
                   />
                 </div>
                 <div className="flex gap-4 pt-4">

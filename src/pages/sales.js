@@ -59,7 +59,7 @@ export default function Sales() {
       if (res.ok) {
         toast.success('Sale voided successfully!');
         fetchSales();
-        if (selectedSale?.id === saleId) {
+        if (selectedSale?.sale_id === saleId) {
           setShowDetailModal(false);
           setSelectedSale(null);
         }
@@ -100,10 +100,10 @@ export default function Sales() {
   };
 
   const totals = sales.reduce((acc, sale) => {
-    if (!sale.is_void) {
+    if (sale.is_active) {
       acc.total += parseFloat(sale.total_amount || 0);
-      acc.cash += parseFloat(sale.cash_amount || 0);
-      acc.credit += parseFloat(sale.credit_amount || 0);
+      acc.cash += parseFloat(sale.amount_paid || 0);
+      acc.credit += parseFloat(sale.total_amount || 0) - parseFloat(sale.amount_paid || 0);
     }
     return acc;
   }, { total: 0, cash: 0, credit: 0 });
@@ -114,8 +114,8 @@ export default function Sales() {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Sales History</h1>
-              <p className="text-sm text-gray-500">
+              <h1 className="text-2xl font-bold text-black">Sales History</h1>
+              <p className="text-sm text-black">
                 {sales.length} transactions | Total: {formatCurrency(totals.total)}
               </p>
             </div>
@@ -168,7 +168,7 @@ export default function Sales() {
             {(filters.startDate || filters.endDate || filters.paymentMethod || filters.search) && (
               <button
                 onClick={() => setFilters({ startDate: '', endDate: '', paymentMethod: '', search: '' })}
-                className="text-sm text-gray-500 hover:text-gray-700"
+                className="text-sm text-black hover:text-gray-700"
               >
                 Clear filters
               </button>
@@ -178,15 +178,15 @@ export default function Sales() {
           {/* Summary Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-white p-4 rounded-lg shadow">
-              <p className="text-sm text-gray-500">Total Sales</p>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(totals.total)}</p>
+              <p className="text-sm text-black">Total Sales</p>
+              <p className="text-2xl font-bold text-black">{formatCurrency(totals.total)}</p>
             </div>
             <div className="bg-white p-4 rounded-lg shadow">
-              <p className="text-sm text-gray-500">Cash Received</p>
+              <p className="text-sm text-black">Cash Received</p>
               <p className="text-2xl font-bold text-green-600">{formatCurrency(totals.cash)}</p>
             </div>
             <div className="bg-white p-4 rounded-lg shadow">
-              <p className="text-sm text-gray-500">Credit Extended</p>
+              <p className="text-sm text-black">Credit Extended</p>
               <p className="text-2xl font-bold text-yellow-600">{formatCurrency(totals.credit)}</p>
             </div>
           </div>
@@ -196,20 +196,20 @@ export default function Sales() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cashier</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Payment</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase">Invoice</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase">Customer</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase">Cashier</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-black uppercase">Payment</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-black uppercase">Total</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-black uppercase">Status</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-black uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan="8" className="px-6 py-4 text-center text-gray-500">Loading...</td>
+                    <td colSpan="8" className="px-6 py-4 text-center text-black">Loading...</td>
                   </tr>
                 ) : sales.length === 0 ? (
                   <tr>
@@ -217,50 +217,54 @@ export default function Sales() {
                   </tr>
                 ) : (
                   sales.map(sale => (
-                    <tr key={sale.id} className={`hover:bg-gray-50 ${sale.is_void ? 'bg-red-50' : ''}`}>
+                    <tr key={sale.sale_id} className={`hover:bg-gray-50 ${!sale.is_active ? 'bg-red-50' : ''}`}>
                       <td className="px-6 py-4">
-                        <span className="font-mono text-sm">{sale.invoice_number}</span>
+                        <span className="font-mono text-sm">SALE-{sale.sale_id}</span>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
+                      <td className="px-6 py-4 text-sm text-black">
                         {formatDateTime(sale.created_at)}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {sale.customer?.name || 'Walk-in'}
+                      <td className="px-6 py-4 text-sm text-black">
+                        {sale.customers?.customer_name || 'Walk-in'}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {sale.user?.username || '-'}
+                      <td className="px-6 py-4 text-sm text-black">
+                        {sale.employees?.employee_name || '-'}
                       </td>
                       <td className="px-6 py-4 text-center">
                         {getPaymentBadge(sale.payment_method)}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <span className={`font-medium ${sale.is_void ? 'line-through text-gray-400' : 'text-gray-900'}`}>
+                        <span className={`font-medium ${!sale.is_active ? 'line-through text-gray-400' : 'text-black'}`}>
                           {formatCurrency(sale.total_amount)}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {sale.is_void ? (
+                        {!sale.is_active ? (
                           <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
                             VOID
                           </span>
                         ) : (
-                          <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                            Complete
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                            sale.sale_status === 'PAID' ? 'bg-green-100 text-green-800' :
+                            sale.sale_status === 'PARTIAL' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {sale.sale_status}
                           </span>
                         )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex justify-center gap-2">
                           <button
-                            onClick={() => openDetailModal(sale.id)}
+                            onClick={() => openDetailModal(sale.sale_id)}
                             className="p-1 text-blue-600 hover:text-blue-800"
                             title="View Details"
                           >
                             <EyeIcon className="h-5 w-5" />
                           </button>
-                          {!sale.is_void && (
+                          {sale.is_active && (
                             <button
-                              onClick={() => handleVoid(sale.id)}
+                              onClick={() => handleVoid(sale.sale_id)}
                               className="p-1 text-red-600 hover:text-red-800"
                               title="Void Sale"
                             >
@@ -291,7 +295,7 @@ export default function Sales() {
                 </button>
               </div>
 
-              {selectedSale.is_void && (
+              {!selectedSale.is_active && (
                 <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded-lg text-red-800 text-sm">
                   This sale has been voided
                 </div>
@@ -299,27 +303,27 @@ export default function Sales() {
 
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
-                  <p className="text-sm text-gray-500">Invoice Number</p>
-                  <p className="font-mono font-medium">{selectedSale.invoice_number}</p>
+                  <p className="text-sm text-black">Sale ID</p>
+                  <p className="font-mono font-medium">SALE-{selectedSale.sale_id}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Date</p>
+                  <p className="text-sm text-black">Date</p>
                   <p className="font-medium">{formatDateTime(selectedSale.created_at)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Customer</p>
-                  <p className="font-medium">{selectedSale.customer?.name || 'Walk-in'}</p>
+                  <p className="text-sm text-black">Customer</p>
+                  <p className="font-medium">{selectedSale.customers?.customer_name || 'Walk-in'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Cashier</p>
-                  <p className="font-medium">{selectedSale.user?.username || '-'}</p>
+                  <p className="text-sm text-black">Cashier</p>
+                  <p className="font-medium">{selectedSale.employees?.employee_name || '-'}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Payment Method</p>
+                  <p className="text-sm text-black">Payment Method</p>
                   <p className="font-medium">{selectedSale.payment_method}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Total Amount</p>
+                  <p className="text-sm text-black">Total Amount</p>
                   <p className="font-medium text-lg">{formatCurrency(selectedSale.total_amount)}</p>
                 </div>
               </div>
@@ -327,12 +331,12 @@ export default function Sales() {
               {selectedSale.payment_method !== 'CASH' && (
                 <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
                   <div>
-                    <p className="text-sm text-gray-500">Cash Paid</p>
-                    <p className="font-medium text-green-600">{formatCurrency(selectedSale.cash_amount)}</p>
+                    <p className="text-sm text-black">Amount Paid</p>
+                    <p className="font-medium text-green-600">{formatCurrency(selectedSale.amount_paid)}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Credit Amount</p>
-                    <p className="font-medium text-yellow-600">{formatCurrency(selectedSale.credit_amount)}</p>
+                    <p className="text-sm text-black">Credit Amount</p>
+                    <p className="font-medium text-yellow-600">{formatCurrency(parseFloat(selectedSale.total_amount || 0) - parseFloat(selectedSale.amount_paid || 0))}</p>
                   </div>
                 </div>
               )}
@@ -342,19 +346,19 @@ export default function Sales() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Price</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Subtotal</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-black uppercase">Product</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-black uppercase">Qty</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-black uppercase">Price</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-black uppercase">Subtotal</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {selectedSale.sale_details?.map((item, index) => (
                       <tr key={index}>
-                        <td className="px-4 py-2 text-sm">{item.product?.name}</td>
+                        <td className="px-4 py-2 text-sm">{item.products?.product_name}</td>
                         <td className="px-4 py-2 text-sm text-right">{item.quantity}</td>
                         <td className="px-4 py-2 text-sm text-right">{formatCurrency(item.unit_price)}</td>
-                        <td className="px-4 py-2 text-sm text-right font-medium">{formatCurrency(item.subtotal)}</td>
+                        <td className="px-4 py-2 text-sm text-right font-medium">{formatCurrency((item.quantity || 0) * (item.unit_price || 0))}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -374,9 +378,9 @@ export default function Sales() {
                 >
                   Close
                 </button>
-                {!selectedSale.is_void && (
+                {selectedSale.is_active && (
                   <button
-                    onClick={() => handleVoid(selectedSale.id)}
+                    onClick={() => handleVoid(selectedSale.sale_id)}
                     className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
                   >
                     Void Sale

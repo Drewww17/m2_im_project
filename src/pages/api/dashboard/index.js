@@ -153,6 +153,116 @@ async function getDashboard(req, res) {
       received_orders: purchaseOrders.filter(po => po.po_status === 'RECEIVED').length
     };
     
+    // Expiring products - products expiring within 30 days
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+    
+    const expiringInventory = await prisma.inventory.findMany({
+      where: {
+        is_active: true,
+        current_stock: { gt: 0 },
+        expiration_date: {
+          lte: thirtyDaysFromNow,
+          gte: new Date()
+        }
+      },
+      include: {
+        products: {
+          select: {
+            product_id: true,
+            product_name: true,
+            product_code: true,
+            unit: true
+          }
+        }
+      },
+      orderBy: { expiration_date: 'asc' }
+    });
+
+    // Already expired products
+    const expiredInventory = await prisma.inventory.findMany({
+      where: {
+        is_active: true,
+        current_stock: { gt: 0 },
+        expiration_date: {
+          lt: new Date()
+        }
+      },
+      include: {
+        products: {
+          select: {
+            product_id: true,
+            product_name: true,
+            product_code: true,
+            unit: true
+          }
+        }
+      },
+      orderBy: { expiration_date: 'asc' }
+    });
+
+    const expirationAlerts = {
+      expiring_soon: expiringInventory.map(inv => ({
+        inventory_id: inv.inventory_id,
+        product_name: inv.products?.product_name,
+        product_code: inv.products?.product_code,
+        current_stock: inv.current_stock,
+        unit: inv.products?.unit,
+        expiration_date: inv.expiration_date,
+        days_until_expiry: Math.ceil((new Date(inv.expiration_date) - new Date()) / (1000 * 60 * 60 * 24))
+      })),
+      already_expired: expiredInventory.map(inv => ({
+        inventory_id: inv.inventory_id,
+        product_name: inv.products?.product_name,
+        product_code: inv.products?.product_code,
+        current_stock: inv.current_stock,
+        unit: inv.products?.unit,
+        expiration_date: inv.expiration_date,
+        days_expired: Math.ceil((new Date() - new Date(inv.expiration_date)) / (1000 * 60 * 60 * 24))
+      })),
+      expiring_count: expiringInventory.length,
+      expired_count: expiredInventory.length
+    };
+
+    // Low stock alerts - products at or below reorder level
+    const lowStockInventory = await prisma.inventory.findMany({
+      where: {
+        is_active: true
+      },
+      include: {
+        products: {
+          select: {
+            product_id: true,
+            product_name: true,
+            product_code: true,
+            unit: true,
+            reorder_level: true
+          }
+        }
+      }
+    });
+
+    // Filter to only items at or below reorder level
+    const lowStockItems = lowStockInventory
+      .filter(inv => inv.products && inv.current_stock <= (inv.products.reorder_level || 0))
+      .map(inv => ({
+        inventory_id: inv.inventory_id,
+        product_name: inv.products?.product_name,
+        product_code: inv.products?.product_code,
+        current_stock: inv.current_stock,
+        unit: inv.products?.unit,
+        reorder_level: inv.products?.reorder_level || 0,
+        is_out_of_stock: inv.current_stock === 0
+      }))
+      .sort((a, b) => a.current_stock - b.current_stock);
+
+    const lowStockAlerts = {
+      items: lowStockItems,
+      low_stock_count: lowStockItems.filter(i => i.current_stock > 0).length,
+      out_of_stock_count: lowStockItems.filter(i => i.current_stock === 0).length,
+      total_count: lowStockItems.length
+    };
+    
     return res.status(200).json({
       success: true,
       dashboard: {
@@ -163,7 +273,9 @@ async function getDashboard(req, res) {
         customer_credit: creditSummary,
         supplier_payables: payablesSummary,
         inventory: inventoryValuation,
-        purchases: purchaseSummary
+        purchases: purchaseSummary,
+        expiration_alerts: expirationAlerts,
+        low_stock_alerts: lowStockAlerts
       }
     });
   } catch (error) {

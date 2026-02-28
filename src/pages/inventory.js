@@ -6,6 +6,8 @@ import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import toast from 'react-hot-toast';
 
+import { PencilIcon } from '@heroicons/react/24/outline';
+
 function formatCurrency(amount) {
   return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount || 0);
 }
@@ -17,6 +19,8 @@ export default function InventoryPage() {
   const [filter, setFilter] = useState('all'); // all, lowStock, expiringSoon, expired
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingInventory, setEditingInventory] = useState(null);
 
   useEffect(() => {
     loadInventory();
@@ -166,6 +170,7 @@ export default function InventoryPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expiration</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Value</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -180,7 +185,7 @@ export default function InventoryPage() {
                     </td>
                     <td className="px-6 py-4">
                       <span className={`font-medium ${item.is_low_stock ? 'text-orange-600' : 'text-gray-900'}`}>
-                        {item.quantity} {item.product.unit}
+                        {item.current_stock} {item.product.unit}
                       </span>
                       {item.is_low_stock && (
                         <div className="text-xs text-orange-500">
@@ -215,6 +220,18 @@ export default function InventoryPage() {
                     <td className="px-6 py-4">
                       {getStatusBadge(item)}
                     </td>
+                    <td className="px-6 py-4 text-center">
+                      <button
+                        onClick={() => {
+                          setEditingInventory(item);
+                          setShowEditModal(true);
+                        }}
+                        className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+                        title="Edit batch & expiry"
+                      >
+                        <PencilIcon className="h-5 w-5" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -242,6 +259,23 @@ export default function InventoryPage() {
               setShowAdjustModal(false);
               loadInventory();
               toast.success('Stock adjusted successfully');
+            }}
+          />
+        )}
+
+        {/* Edit Inventory Modal */}
+        {showEditModal && editingInventory && (
+          <EditInventoryModal
+            inventory={editingInventory}
+            onClose={() => {
+              setShowEditModal(false);
+              setEditingInventory(null);
+            }}
+            onSuccess={() => {
+              setShowEditModal(false);
+              setEditingInventory(null);
+              loadInventory();
+              toast.success('Inventory updated successfully');
             }}
           />
         )}
@@ -502,6 +536,143 @@ function StockAdjustModal({ onClose, onSuccess }) {
               className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 disabled:opacity-50"
             >
               {loading ? 'Adjusting...' : 'Adjust Stock'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function EditInventoryModal({ inventory, onClose, onSuccess }) {
+  const [currentStock, setCurrentStock] = useState(inventory.current_stock ?? 0);
+  const [batchNumber, setBatchNumber] = useState(inventory.batch_number || '');
+  const [expirationDate, setExpirationDate] = useState(
+    inventory.expiration_date 
+      ? new Date(inventory.expiration_date).toISOString().split('T')[0] 
+      : ''
+  );
+  const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/inventory/${inventory.inventory_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentStock,
+          batchNumber: batchNumber || null,
+          expirationDate: expirationDate || null,
+          notes: notes || null
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        onSuccess();
+      } else {
+        toast.error(data.error);
+      }
+    } catch (error) {
+      toast.error('Update failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+        <h2 className="text-xl font-bold mb-2">Edit Inventory</h2>
+        <p className="text-sm text-gray-600 mb-4">
+          {inventory.product?.product_name} ({inventory.current_stock} {inventory.product?.unit})
+        </p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-black mb-1">Quantity</label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCurrentStock(Math.max(0, Number(currentStock || 0) - 1))}
+                className="px-3 py-2 border rounded-lg bg-gray-100 hover:bg-gray-200 text-black"
+                aria-label="Decrease quantity"
+              >
+                -
+              </button>
+              <input
+                type="number"
+                min="0"
+                value={currentStock}
+                onChange={(e) => setCurrentStock(Math.max(0, Number(e.target.value || 0)))}
+                required
+                className="w-full px-3 py-2 border rounded-lg text-black text-center"
+              />
+              <button
+                type="button"
+                onClick={() => setCurrentStock(Number(currentStock || 0) + 1)}
+                className="px-3 py-2 border rounded-lg bg-gray-100 hover:bg-gray-200 text-black"
+                aria-label="Increase quantity"
+              >
+                +
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-black mb-1">Batch ID / Lot Number</label>
+            <input
+              type="text"
+              value={batchNumber}
+              onChange={(e) => setBatchNumber(e.target.value)}
+              placeholder="e.g., BATCH-2026-001"
+              className="w-full px-3 py-2 border rounded-lg text-black"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-black mb-1">Expiration Date</label>
+            <input
+              type="date"
+              value={expirationDate}
+              onChange={(e) => setExpirationDate(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg text-black"
+            />
+            {expirationDate && (
+              <p className="text-xs text-gray-500 mt-1">
+                {(() => {
+                  const days = Math.ceil((new Date(expirationDate) - new Date()) / (1000 * 60 * 60 * 24));
+                  if (days < 0) return <span className="text-red-600">Expired {Math.abs(days)} days ago</span>;
+                  if (days <= 7) return <span className="text-red-600">{days} days until expiry</span>;
+                  if (days <= 30) return <span className="text-yellow-600">{days} days until expiry</span>;
+                  return <span className="text-green-600">{days} days until expiry</span>;
+                })()}
+              </p>
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-black mb-1">Notes (optional)</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              placeholder="Reason for update..."
+              className="w-full px-3 py-2 border rounded-lg text-black"
+            />
+          </div>
+          <div className="flex gap-2 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+            >
+              {loading ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </form>

@@ -16,10 +16,7 @@ export default function Suppliers() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [formData, setFormData] = useState({
     name: '',
-    contact_person: '',
-    phone: '',
-    email: '',
-    address: ''
+    phone: ''
   });
 
   useEffect(() => {
@@ -56,14 +53,17 @@ export default function Suppliers() {
     e.preventDefault();
     try {
       const url = editingSupplier 
-        ? `/api/suppliers/${editingSupplier.id}` 
+        ? `/api/suppliers/${editingSupplier.supplier_id}` 
         : '/api/suppliers';
       const method = editingSupplier ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          supplierName: formData.name,
+          phone: formData.phone
+        })
       });
 
       const data = await res.json();
@@ -85,7 +85,7 @@ export default function Suppliers() {
     if (!selectedSupplier || !paymentAmount) return;
 
     try {
-      const res = await fetch(`/api/suppliers/${selectedSupplier.id}/payment`, {
+      const res = await fetch(`/api/suppliers/${selectedSupplier.supplier_id}/payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: parseFloat(paymentAmount) })
@@ -126,11 +126,8 @@ export default function Suppliers() {
   const openEditModal = (supplier) => {
     setEditingSupplier(supplier);
     setFormData({
-      name: supplier.name,
-      contact_person: supplier.contact_person || '',
-      phone: supplier.phone || '',
-      email: supplier.email || '',
-      address: supplier.address || ''
+      name: supplier.supplier_name || '',
+      phone: supplier.contact_number || ''
     });
     setShowModal(true);
   };
@@ -145,14 +142,11 @@ export default function Suppliers() {
     setEditingSupplier(null);
     setFormData({
       name: '',
-      contact_person: '',
-      phone: '',
-      email: '',
-      address: ''
+      phone: ''
     });
   };
 
-  const totalPayables = suppliers.reduce((sum, s) => sum + parseFloat(s.balance || 0), 0);
+  const totalPayables = suppliers.reduce((sum, s) => sum + parseFloat(s.payable_balance || 0), 0);
 
   return (
     <ProtectedRoute requiredRole="CLERK">
@@ -160,8 +154,8 @@ export default function Suppliers() {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Suppliers</h1>
-              <p className="text-sm text-gray-500">
+              <h1 className="text-2xl font-bold text-black">Suppliers</h1>
+              <p className="text-sm text-black">
                 Total Payables: <span className="font-medium text-red-600">{formatCurrency(totalPayables)}</span>
               </p>
             </div>
@@ -191,51 +185,44 @@ export default function Suppliers() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phone</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase">Supplier</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase">Phone</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-black uppercase">Products</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-black uppercase">Balance</th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan="6" className="px-6 py-4 text-center text-gray-500">Loading...</td>
+                    <td colSpan="5" className="px-6 py-4 text-center text-black">Loading...</td>
                   </tr>
                 ) : suppliers.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="px-6 py-4 text-center text-gray-500">No suppliers found</td>
+                    <td colSpan="5" className="px-6 py-4 text-center text-black">No suppliers found</td>
                   </tr>
                 ) : (
                   suppliers.map(supplier => (
-                    <tr key={supplier.id} className="hover:bg-gray-50">
+                    <tr key={supplier.supplier_id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
-                        <div className="font-medium text-gray-900">{supplier.name}</div>
-                        {supplier.address && (
-                          <div className="text-sm text-gray-500">{supplier.address}</div>
-                        )}
+                        <div className="font-medium text-black">{supplier.supplier_name}</div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {supplier.contact_person || '-'}
+                      <td className="px-6 py-4 text-sm text-black">
+                        {supplier.contact_number || '-'}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {supplier.phone || '-'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {supplier.email || '-'}
+                      <td className="px-6 py-4 text-right text-sm text-black">
+                        {supplier.product_count || 0}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <span className={`font-medium ${
-                          parseFloat(supplier.balance) > 0 ? 'text-red-600' : 'text-green-600'
+                          parseFloat(supplier.payable_balance) > 0 ? 'text-red-600' : 'text-green-600'
                         }`}>
-                          {formatCurrency(supplier.balance)}
+                          {formatCurrency(supplier.payable_balance)}
                         </span>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex justify-center gap-2">
-                          {parseFloat(supplier.balance) > 0 && (
+                          {parseFloat(supplier.payable_balance) > 0 && (
                             <button
                               onClick={() => openPaymentModal(supplier)}
                               className="p-1 text-green-600 hover:text-green-800"
@@ -251,7 +238,7 @@ export default function Suppliers() {
                             <PencilIcon className="h-5 w-5" />
                           </button>
                           <button
-                            onClick={() => handleDelete(supplier.id)}
+                            onClick={() => handleDelete(supplier.supplier_id)}
                             className="p-1 text-red-600 hover:text-red-800"
                           >
                             <TrashIcon className="h-5 w-5" />
@@ -275,7 +262,7 @@ export default function Suppliers() {
               </h2>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Company Name *</label>
+                  <label className="block text-sm font-medium text-black">Company Name *</label>
                   <input
                     type="text"
                     required
@@ -285,40 +272,11 @@ export default function Suppliers() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Contact Person</label>
+                  <label className="block text-sm font-medium text-black">Phone</label>
                   <input
                     type="text"
-                    value={formData.contact_person}
-                    onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
-                    className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Phone</label>
-                    <input
-                      type="text"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Email</label>
-                    <input
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Address</label>
-                  <textarea
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    rows={2}
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
                   />
                 </div>
@@ -348,26 +306,26 @@ export default function Suppliers() {
             <div className="bg-white rounded-lg p-6 w-full max-w-md">
               <h2 className="text-xl font-bold mb-4">Record Payment to Supplier</h2>
               <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-                <p className="font-medium">{selectedSupplier.name}</p>
-                <p className="text-sm text-gray-500">
-                  Outstanding Balance: <span className="text-red-600 font-medium">{formatCurrency(selectedSupplier.balance)}</span>
+                <p className="font-medium">{selectedSupplier.supplier_name}</p>
+                <p className="text-sm text-black">
+                  Outstanding Balance: <span className="text-red-600 font-medium">{formatCurrency(selectedSupplier.payable_balance)}</span>
                 </p>
               </div>
               <form onSubmit={handlePayment} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Payment Amount *</label>
+                  <label className="block text-sm font-medium text-black">Payment Amount *</label>
                   <input
                     type="number"
                     step="0.01"
                     required
                     min="0.01"
-                    max={selectedSupplier.balance}
+                    max={selectedSupplier.payable_balance}
                     value={paymentAmount}
                     onChange={(e) => setPaymentAmount(e.target.value)}
                     className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
                   />
-                  <p className="mt-1 text-sm text-gray-500">
-                    Max: {formatCurrency(selectedSupplier.balance)}
+                  <p className="mt-1 text-sm text-black">
+                    Max: {formatCurrency(selectedSupplier.payable_balance)}
                   </p>
                 </div>
                 <div className="flex gap-4 pt-4">

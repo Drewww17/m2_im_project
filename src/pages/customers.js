@@ -17,9 +17,8 @@ export default function Customers() {
   const [formData, setFormData] = useState({
     name: '',
     contact: '',
-    address: '',
     credit_limit: '',
-    is_vip: false
+    customer_type: 'WALK_IN'
   });
 
   useEffect(() => {
@@ -56,7 +55,7 @@ export default function Customers() {
     e.preventDefault();
     try {
       const url = editingCustomer 
-        ? `/api/customers/${editingCustomer.id}` 
+        ? `/api/customers/${editingCustomer.customer_id}` 
         : '/api/customers';
       const method = editingCustomer ? 'PUT' : 'POST';
 
@@ -64,8 +63,10 @@ export default function Customers() {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...formData,
-          credit_limit: parseFloat(formData.credit_limit) || 0
+          customerName: formData.name,
+          customerType: formData.customer_type,
+          phone: formData.contact,
+          creditLimit: parseFloat(formData.credit_limit) || 0
         })
       });
 
@@ -88,7 +89,7 @@ export default function Customers() {
     if (!selectedCustomer || !paymentAmount) return;
 
     try {
-      const res = await fetch(`/api/customers/${selectedCustomer.id}/payment`, {
+      const res = await fetch(`/api/customers/${selectedCustomer.customer_id}/payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: parseFloat(paymentAmount) })
@@ -129,11 +130,10 @@ export default function Customers() {
   const openEditModal = (customer) => {
     setEditingCustomer(customer);
     setFormData({
-      name: customer.name,
-      contact: customer.contact || '',
-      address: customer.address || '',
+      name: customer.customer_name || '',
+      contact: customer.contact_number || '',
       credit_limit: customer.credit_limit === null || customer.credit_limit === undefined ? '' : customer.credit_limit.toString(),
-      is_vip: customer.is_vip
+      customer_type: customer.customer_type || 'WALK_IN'
     });
     setShowModal(true);
   };
@@ -149,13 +149,12 @@ export default function Customers() {
     setFormData({
       name: '',
       contact: '',
-      address: '',
       credit_limit: '',
-      is_vip: false
+      customer_type: 'WALK_IN'
     });
   };
 
-  const totalReceivables = customers.reduce((sum, c) => sum + parseFloat(c.balance || 0), 0);
+  const totalReceivables = customers.reduce((sum, c) => sum + parseFloat(c.credit_balance || 0), 0);
 
   return (
     <ProtectedRoute requiredRole="CLERK">
@@ -163,8 +162,8 @@ export default function Customers() {
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Customers</h1>
-              <p className="text-sm text-gray-500">
+              <h1 className="text-2xl font-bold text-black">Customers</h1>
+              <p className="text-sm text-black">
                 Total Receivables: <span className="font-medium text-red-600">{formatCurrency(totalReceivables)}</span>
               </p>
             </div>
@@ -194,67 +193,58 @@ export default function Customers() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Credit Limit</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase">Customer</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-black uppercase">Contact</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-black uppercase">Credit Limit</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-black uppercase">Balance</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-black uppercase">Status</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-black uppercase">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan="6" className="px-6 py-4 text-center text-gray-500">Loading...</td>
+                    <td colSpan="6" className="px-6 py-4 text-center text-black">Loading...</td>
                   </tr>
                 ) : customers.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="px-6 py-4 text-center text-gray-500">No customers found</td>
+                    <td colSpan="6" className="px-6 py-4 text-center text-black">No customers found</td>
                   </tr>
                 ) : (
                   customers.map(customer => (
-                    <tr key={customer.id} className="hover:bg-gray-50">
+                    <tr key={customer.customer_id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <div>
-                            <div className="font-medium text-gray-900">{customer.name}</div>
-                            {customer.address && (
-                              <div className="text-sm text-gray-500">{customer.address}</div>
+                            <div className="font-medium text-black">{customer.customer_name}</div>
+                            {customer.customer_type && (
+                              <div className="text-sm text-black">{customer.customer_type}</div>
                             )}
                           </div>
-                          {customer.is_vip && (
-                            <span className="px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">
-                              VIP
-                            </span>
-                          )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">{customer.contact || '-'}</td>
-                      <td className="px-6 py-4 text-right text-sm text-gray-500">
+                      <td className="px-6 py-4 text-sm text-black">{customer.contact_number || '-'}</td>
+                      <td className="px-6 py-4 text-right text-sm text-black">
                         {formatCurrency(customer.credit_limit)}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <span className={`font-medium ${
-                          parseFloat(customer.balance) > 0 ? 'text-red-600' : 'text-green-600'
+                          parseFloat(customer.credit_balance) > 0 ? 'text-red-600' : 'text-green-600'
                         }`}>
-                          {formatCurrency(customer.balance)}
+                          {formatCurrency(customer.credit_balance)}
                         </span>
-                        {parseFloat(customer.balance) > parseFloat(customer.credit_limit) && (
+                        {parseFloat(customer.credit_balance) > parseFloat(customer.credit_limit) && (
                           <div className="text-xs text-red-500">Over limit!</div>
                         )}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          customer.is_active 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {customer.is_active ? 'Active' : 'Inactive'}
+                        <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                          Active
                         </span>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex justify-center gap-2">
-                          {parseFloat(customer.balance) > 0 && (
+                          {parseFloat(customer.credit_balance) > 0 && (
                             <button
                               onClick={() => openPaymentModal(customer)}
                               className="p-1 text-green-600 hover:text-green-800"
@@ -270,7 +260,7 @@ export default function Customers() {
                             <PencilIcon className="h-5 w-5" />
                           </button>
                           <button
-                            onClick={() => handleDelete(customer.id)}
+                            onClick={() => handleDelete(customer.customer_id)}
                             className="p-1 text-red-600 hover:text-red-800"
                           >
                             <TrashIcon className="h-5 w-5" />
@@ -294,7 +284,7 @@ export default function Customers() {
               </h2>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Name *</label>
+                  <label className="block text-sm font-medium text-black">Name *</label>
                   <input
                     type="text"
                     required
@@ -304,7 +294,7 @@ export default function Customers() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Contact</label>
+                  <label className="block text-sm font-medium text-black">Contact</label>
                   <input
                     type="text"
                     value={formData.contact}
@@ -313,16 +303,19 @@ export default function Customers() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Address</label>
-                  <textarea
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    rows={2}
+                  <label className="block text-sm font-medium text-black">Customer Type</label>
+                  <select
+                    value={formData.customer_type}
+                    onChange={(e) => setFormData({ ...formData, customer_type: e.target.value })}
                     className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
-                  />
+                  >
+                    <option value="WALK_IN">Walk-in</option>
+                    <option value="REGULAR">Regular</option>
+                    <option value="VIP">VIP</option>
+                  </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Credit Limit</label>
+                  <label className="block text-sm font-medium text-black">Credit Limit</label>
                   <input
                     type="number"
                     step="0.01"
@@ -330,18 +323,6 @@ export default function Customers() {
                     onChange={(e) => setFormData({ ...formData, credit_limit: e.target.value })}
                     className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
                   />
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="is_vip"
-                    checked={formData.is_vip}
-                    onChange={(e) => setFormData({ ...formData, is_vip: e.target.checked })}
-                    className="rounded text-green-600 focus:ring-green-500"
-                  />
-                  <label htmlFor="is_vip" className="text-sm font-medium text-gray-700">
-                    VIP Customer
-                  </label>
                 </div>
                 <div className="flex gap-4 pt-4">
                   <button
@@ -369,26 +350,26 @@ export default function Customers() {
             <div className="bg-white rounded-lg p-6 w-full max-w-md">
               <h2 className="text-xl font-bold mb-4">Record Payment</h2>
               <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-                <p className="font-medium">{selectedCustomer.name}</p>
-                <p className="text-sm text-gray-500">
-                  Current Balance: <span className="text-red-600 font-medium">{formatCurrency(selectedCustomer.balance)}</span>
+                <p className="font-medium">{selectedCustomer.customer_name}</p>
+                <p className="text-sm text-black">
+                  Current Balance: <span className="text-red-600 font-medium">{formatCurrency(selectedCustomer.credit_balance)}</span>
                 </p>
               </div>
               <form onSubmit={handlePayment} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Payment Amount *</label>
+                  <label className="block text-sm font-medium text-black">Payment Amount *</label>
                   <input
                     type="number"
                     step="0.01"
                     required
                     min="0.01"
-                    max={selectedCustomer.balance}
+                    max={selectedCustomer.credit_balance}
                     value={paymentAmount}
                     onChange={(e) => setPaymentAmount(e.target.value)}
                     className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
                   />
-                  <p className="mt-1 text-sm text-gray-500">
-                    Max: {formatCurrency(selectedCustomer.balance)}
+                  <p className="mt-1 text-sm text-black">
+                    Max: {formatCurrency(selectedCustomer.credit_balance)}
                   </p>
                 </div>
                 <div className="flex gap-4 pt-4">

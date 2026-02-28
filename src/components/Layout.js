@@ -12,12 +12,11 @@ const navigation = [
   { name: 'POS', href: '/pos', icon: 'cart', roles: ['CASHIER', 'CLERK', 'MANAGER'] },
   { name: 'Products', href: '/products', icon: 'cube', roles: ['CASHIER', 'CLERK', 'MANAGER'] },
   { name: 'Inventory', href: '/inventory', icon: 'archive', roles: ['CLERK', 'MANAGER'] },
-  { name: 'Customers', href: '/customers', icon: 'users', roles: ['CASHIER', 'CLERK', 'MANAGER'] },
+  { name: 'Customers', href: '/customers', icon: 'users', roles: ['CLERK', 'MANAGER'] },
   { name: 'Suppliers', href: '/suppliers', icon: 'truck', roles: ['CLERK', 'MANAGER'] },
-  { name: 'Sales', href: '/sales', icon: 'receipt', roles: ['CASHIER', 'CLERK', 'MANAGER'] },
+  { name: 'Sales', href: '/sales', icon: 'receipt', roles: ['CLERK', 'MANAGER'] },
   { name: 'Purchase Orders', href: '/purchase-orders', icon: 'document', roles: ['CLERK', 'MANAGER'] },
   { name: 'Reports', href: '/reports', icon: 'report', roles: ['MANAGER'] },
-  { name: 'Users', href: '/users', icon: 'user-group', roles: ['MANAGER'] },
 ];
 
 export default function Layout({ children }) {

@@ -1,7 +1,7 @@
 /**
  * Sales API Routes
  * POS Sales creation and management
- * NOTE: Stock reduction is handled by database triggers - DO NOT duplicate logic here
+ * NOTE: Stock validation/reduction is handled in this API transaction (batch-aware FIFO)
  */
 import prisma from '@/lib/prisma';
 import { withCashier, withManager, apiHandler } from '@/middleware/withAuth';
@@ -87,6 +87,8 @@ async function getSales(req, res) {
 async function createSale(req, res) {
   const {
     customerId,
+    processType,
+    delivery,
     items, // Array of { productId, quantity, unitPrice, discount }
     discount = 0,
     tax = 0,
@@ -171,8 +173,10 @@ async function createSale(req, res) {
       const sale = await tx.sales.create({
         data: {
           sale_date: new Date(),
+          process_type: processType || 'Walk-in',
           customer_id: customerId || null,
           employee_id: null,
+          remarks: notes || null,
           total_amount: totalAmount,
           amount_paid: paidAmount,
           payment_method: paymentMethod || 'CASH',
@@ -190,6 +194,36 @@ async function createSale(req, res) {
             }
           },
           customers: true,
+          delivery: true,
+          employees: {
+            select: { employee_id: true, employee_name: true }
+          }
+        }
+      });
+
+      if (delivery && delivery.address) {
+        await tx.delivery.create({
+          data: {
+            sale_id: sale.sale_id,
+            delivery_date: delivery.date ? new Date(delivery.date) : new Date(),
+            delivery_address: delivery.address,
+            delivery_status: delivery.status || 'PENDING'
+          }
+        });
+      }
+
+      const saleWithDelivery = await tx.sales.findUnique({
+        where: { sale_id: sale.sale_id },
+        include: {
+          sale_details: {
+            include: {
+              products: {
+                select: { product_id: true, product_name: true, product_code: true, unit: true }
+              }
+            }
+          },
+          customers: true,
+          delivery: true,
           employees: {
             select: { employee_id: true, employee_name: true }
           }
@@ -245,16 +279,21 @@ async function createSale(req, res) {
           transaction_type: 'SALE',
           account_name: customerId ? `Customer #${customerId}` : 'Walk-in',
           amount: totalAmount,
-          remarks: `Sale #${sale.sale_id}`
+          remarks: notes ? `Sale #${sale.sale_id} - ${notes}` : `Sale #${sale.sale_id}`
         }
       });
       
-      return sale;
+      return saleWithDelivery;
     });
     
     // Format response
     const formattedSale = {
       ...result,
+      handled_by: {
+        username: req.user?.username || null,
+        full_name: req.user?.fullName || null,
+        role: req.user?.role || null
+      },
       total_amount: parseDecimal(result.total_amount),
       amount_paid: parseDecimal(result.amount_paid),
       sale_details: result.sale_details.map(detail => ({

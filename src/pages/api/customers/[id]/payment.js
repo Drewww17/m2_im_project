@@ -50,7 +50,7 @@ async function recordPayment(req, res) {
           account_type: 'customer',
           account_id: customerId,
           reference_type: 'PAYMENT',
-          reference_id: `PAY-${Date.now()}`,
+          reference_id: customerId,
           credit: paymentAmount,
           debit: 0
         }

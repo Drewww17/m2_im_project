@@ -64,8 +64,8 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Financial Dashboard</h1>
-            <p className="text-gray-500">Business overview and reports</p>
+            <h1 className="text-2xl font-bold text-black">Financial Dashboard</h1>
+            <p className="text-black">Business overview and reports</p>
           </div>
           <div className="flex gap-2">
             <input
@@ -120,7 +120,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Daily Sales Chart */}
           <div className="bg-white rounded-xl shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Sales</h3>
+            <h3 className="text-lg font-semibold text-black mb-4">Daily Sales</h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data?.daily_sales || []}>
@@ -136,7 +136,7 @@ export default function DashboardPage() {
 
           {/* Payment Method Breakdown */}
           <div className="bg-white rounded-xl shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Payment Methods</h3>
+            <h3 className="text-lg font-semibold text-black mb-4">Payment Methods</h3>
             <div className="h-64 flex items-center justify-center">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -166,13 +166,13 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Top Debtors */}
           <div className="bg-white rounded-xl shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Top Customer Debtors</h3>
+            <h3 className="text-lg font-semibold text-black mb-4">Top Customer Debtors</h3>
             <div className="space-y-3">
               {data?.customer_credit?.top_debtors?.slice(0, 5).map((customer, idx) => (
                 <div key={idx} className="flex justify-between items-center py-2 border-b">
                   <div>
-                    <p className="font-medium text-gray-900">{customer.customer_name}</p>
-                    <p className="text-sm text-gray-500">
+                    <p className="font-medium text-black">{customer.customer_name}</p>
+                    <p className="text-sm text-black">
                       Limit: {formatCurrency(customer.credit_limit)}
                     </p>
                   </div>
@@ -180,32 +180,32 @@ export default function DashboardPage() {
                     {formatCurrency(customer.credit_balance)}
                   </span>
                 </div>
-              )) || <p className="text-gray-500">No outstanding debts</p>}
+              )) || <p className="text-black">No outstanding debts</p>}
             </div>
           </div>
 
           {/* Top Supplier Payables */}
           <div className="bg-white rounded-xl shadow-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Supplier Payables</h3>
+            <h3 className="text-lg font-semibold text-black mb-4">Supplier Payables</h3>
             <div className="space-y-3">
               {data?.supplier_payables?.top_payables?.slice(0, 5).map((supplier, idx) => (
                 <div key={idx} className="flex justify-between items-center py-2 border-b">
-                  <p className="font-medium text-gray-900">{supplier.supplier_name}</p>
+                  <p className="font-medium text-black">{supplier.supplier_name}</p>
                   <span className="text-lg font-semibold text-orange-600">
                     {formatCurrency(supplier.balance_payable)}
                   </span>
                 </div>
-              )) || <p className="text-gray-500">No supplier payables</p>}
+              )) || <p className="text-black">No supplier payables</p>}
             </div>
           </div>
         </div>
 
         {/* Inventory Valuation */}
         <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Inventory Valuation</h3>
+            <h3 className="text-lg font-semibold text-black mb-4">Inventory Valuation</h3>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-500">Total Items</p>
+              <p className="text-sm text-black">Total Items</p>
               <p className="text-2xl font-bold">{data?.inventory?.total_items?.toLocaleString() || 0}</p>
             </div>
             <div className="p-4 bg-blue-50 rounded-lg">
@@ -228,6 +228,198 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Expiration Alerts */}
+        {(data?.expiration_alerts?.expired_count > 0 || data?.expiration_alerts?.expiring_count > 0) && (
+          <div className="space-y-4">
+            {/* Already Expired Products */}
+            {data?.expiration_alerts?.expired_count > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-xl shadow-sm p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-red-800">Expired Products</h3>
+                    <p className="text-sm text-red-600">{data.expiration_alerts.expired_count} product(s) have already expired</p>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="text-left text-sm text-red-700 border-b border-red-200">
+                        <th className="pb-2 font-medium">Product</th>
+                        <th className="pb-2 font-medium">Code</th>
+                        <th className="pb-2 font-medium">Stock</th>
+                        <th className="pb-2 font-medium">Expired On</th>
+                        <th className="pb-2 font-medium">Days Expired</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-red-100">
+                      {data.expiration_alerts.already_expired.map((item, idx) => (
+                        <tr key={idx} className="text-sm text-black">
+                          <td className="py-2 font-medium">{item.product_name}</td>
+                          <td className="py-2">{item.product_code}</td>
+                          <td className="py-2">{item.current_stock} {item.unit}</td>
+                          <td className="py-2">{new Date(item.expiration_date).toLocaleDateString()}</td>
+                          <td className="py-2">
+                            <span className="px-2 py-1 bg-red-200 text-red-800 rounded-full text-xs font-medium">
+                              {item.days_expired} days ago
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Expiring Soon Products */}
+            {data?.expiration_alerts?.expiring_count > 0 && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl shadow-sm p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-yellow-800">Expiring Soon</h3>
+                    <p className="text-sm text-yellow-600">{data.expiration_alerts.expiring_count} product(s) will expire within 30 days</p>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="text-left text-sm text-yellow-700 border-b border-yellow-200">
+                        <th className="pb-2 font-medium">Product</th>
+                        <th className="pb-2 font-medium">Code</th>
+                        <th className="pb-2 font-medium">Stock</th>
+                        <th className="pb-2 font-medium">Expires On</th>
+                        <th className="pb-2 font-medium">Days Left</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-yellow-100">
+                      {data.expiration_alerts.expiring_soon.map((item, idx) => (
+                        <tr key={idx} className="text-sm text-black">
+                          <td className="py-2 font-medium">{item.product_name}</td>
+                          <td className="py-2">{item.product_code}</td>
+                          <td className="py-2">{item.current_stock} {item.unit}</td>
+                          <td className="py-2">{new Date(item.expiration_date).toLocaleDateString()}</td>
+                          <td className="py-2">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              item.days_until_expiry <= 7 
+                                ? 'bg-red-200 text-red-800' 
+                                : item.days_until_expiry <= 14 
+                                  ? 'bg-orange-200 text-orange-800'
+                                  : 'bg-yellow-200 text-yellow-800'
+                            }`}>
+                              {item.days_until_expiry} days
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Low Stock Alerts */}
+        {data?.low_stock_alerts?.total_count > 0 && (
+          <div className="space-y-4">
+            {/* Out of Stock Products */}
+            {data?.low_stock_alerts?.out_of_stock_count > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-xl shadow-sm p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-red-800">Out of Stock</h3>
+                    <p className="text-sm text-red-600">{data.low_stock_alerts.out_of_stock_count} product(s) have no stock</p>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="text-left text-sm text-red-700 border-b border-red-200">
+                        <th className="pb-2 font-medium">Product</th>
+                        <th className="pb-2 font-medium">Code</th>
+                        <th className="pb-2 font-medium">Stock</th>
+                        <th className="pb-2 font-medium">Reorder Level</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-red-100">
+                      {data.low_stock_alerts.items.filter(i => i.is_out_of_stock).map((item, idx) => (
+                        <tr key={idx} className="text-sm text-black">
+                          <td className="py-2 font-medium">{item.product_name}</td>
+                          <td className="py-2">{item.product_code}</td>
+                          <td className="py-2">
+                            <span className="px-2 py-1 bg-red-200 text-red-800 rounded-full text-xs font-medium">
+                              0 {item.unit}
+                            </span>
+                          </td>
+                          <td className="py-2">{item.reorder_level} {item.unit}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Low Stock Products */}
+            {data?.low_stock_alerts?.low_stock_count > 0 && (
+              <div className="bg-orange-50 border border-orange-200 rounded-xl shadow-sm p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-orange-800">Low Stock</h3>
+                    <p className="text-sm text-orange-600">{data.low_stock_alerts.low_stock_count} product(s) below reorder level</p>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="text-left text-sm text-orange-700 border-b border-orange-200">
+                        <th className="pb-2 font-medium">Product</th>
+                        <th className="pb-2 font-medium">Code</th>
+                        <th className="pb-2 font-medium">Current Stock</th>
+                        <th className="pb-2 font-medium">Reorder Level</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-orange-100">
+                      {data.low_stock_alerts.items.filter(i => !i.is_out_of_stock).map((item, idx) => (
+                        <tr key={idx} className="text-sm text-black">
+                          <td className="py-2 font-medium">{item.product_name}</td>
+                          <td className="py-2">{item.product_code}</td>
+                          <td className="py-2">
+                            <span className="px-2 py-1 bg-orange-200 text-orange-800 rounded-full text-xs font-medium">
+                              {item.current_stock} {item.unit}
+                            </span>
+                          </td>
+                          <td className="py-2">{item.reorder_level} {item.unit}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </ProtectedRoute>
   );
@@ -245,9 +437,9 @@ function StatCard({ title, value, subtitle, icon, color }) {
     <div className="bg-white rounded-xl shadow-sm p-6">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-gray-500">{title}</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
-          <p className="text-xs text-gray-400 mt-1">{subtitle}</p>
+          <p className="text-sm text-black">{title}</p>
+          <p className="text-2xl font-bold text-black mt-1">{value}</p>
+          <p className="text-xs text-black mt-1">{subtitle}</p>
         </div>
         <div className={`w-12 h-12 rounded-lg ${colors[color]} flex items-center justify-center`}>
           <StatIcon name={icon} />
