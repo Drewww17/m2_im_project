@@ -60,13 +60,19 @@ npx prisma generate
 
 `/api/auth/register` is manager-protected, so first manager must be inserted once via script.
 
-Run this in PowerShell from project root:
+Set secure environment variables (use your own strong password):
 
 ```powershell
-node -e "const bcrypt=require('bcryptjs'); const {PrismaClient}=require('@prisma/client'); (async()=>{ const prisma=new PrismaClient(); const username='admin'; const password='admin123'; const fullName='System Admin'; const hash=await bcrypt.hash(password,10); const existing=await prisma.users.findUnique({where:{username}}); if(existing){console.log('User already exists:', username);} else {await prisma.users.create({data:{username,password_hash:hash,full_name:fullName,role:'MANAGER',is_active:true}}); console.log('Created manager:', username, 'password:', password);} await prisma.$disconnect(); })().catch(async(e)=>{console.error(e); process.exit(1);});"
+$env:ADMIN_USERNAME="manager"
+$env:ADMIN_PASSWORD="Use-A-Long-Random-Password-Here"
+$env:ADMIN_FULL_NAME="System Manager"
+node seed-manager.js
 ```
 
-Change the username/password immediately after first login.
+Security notes:
+- Use at least 12 characters for `ADMIN_PASSWORD`
+- Never commit real credentials to git
+- Rotate bootstrap credentials after initial setup
 
 ## 6) Run the app
 
