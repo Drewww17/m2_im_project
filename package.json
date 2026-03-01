@@ -29,6 +29,7 @@
     "@tailwindcss/postcss": "^4",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "mysql2": "^3.18.2",
     "tailwindcss": "^4"
   }
 }

@@ -34,7 +34,7 @@ export default function Reports() {
       const res = await fetch(`/api/reports/daily-sales?${params}`);
       const data = await res.json();
       if (res.ok) {
-        setDailySales(data);
+        setDailySales(data.report || null);
       } else {
         toast.error(data.error);
       }
@@ -51,12 +51,23 @@ export default function Reports() {
       const params = new URLSearchParams();
       if (filters.startDate) params.append('startDate', filters.startDate);
       if (filters.endDate) params.append('endDate', filters.endDate);
-      if (filters.type) params.append('type', filters.type);
+      if (filters.type) params.append('accountType', filters.type);
       
       const res = await fetch(`/api/reports/ledger?${params}`);
       const data = await res.json();
       if (res.ok) {
-        setLedger(data);
+        // Compute summary from entries
+        const entries = data.ledger || [];
+        const totalDebit = entries.reduce((sum, e) => sum + (e.debit || 0), 0);
+        const totalCredit = entries.reduce((sum, e) => sum + (e.credit || 0), 0);
+        setLedger({
+          entries,
+          summary: {
+            totalDebit,
+            totalCredit,
+            netBalance: totalCredit - totalDebit
+          }
+        });
       } else {
         toast.error(data.error);
       }
@@ -73,32 +84,31 @@ export default function Reports() {
 
     if (activeReport === 'daily-sales' && dailySales) {
       filename = `daily-sales-${filters.date}.csv`;
-      csvContent = 'Invoice,Date,Customer,Cashier,Payment Method,Total,Cash,Credit,Status\n';
+      csvContent = 'Sale ID,Date,Customer,Cashier,Payment Method,Total,Amount Paid,Status\n';
       dailySales.sales?.forEach(sale => {
         csvContent += [
-          sale.invoice_number,
-          formatDate(sale.created_at),
-          sale.customer?.name || 'Walk-in',
-          sale.user?.username || '',
+          sale.sale_id,
+          formatDate(sale.sale_date),
+          sale.customer || 'Walk-in',
+          sale.cashier || '',
           sale.payment_method,
           sale.total_amount,
-          sale.cash_amount || 0,
-          sale.credit_amount || 0,
-          sale.is_void ? 'VOID' : 'COMPLETE'
+          sale.amount_paid || 0,
+          sale.sale_status || 'COMPLETE'
         ].join(',') + '\n';
       });
     } else if (activeReport === 'ledger' && ledger) {
       filename = `ledger-${filters.startDate || 'all'}-to-${filters.endDate || 'all'}.csv`;
-      csvContent = 'Date,Type,Reference,Description,Debit,Credit,Balance\n';
+      csvContent = 'Date,Account Type,Reference Type,Reference ID,Debit,Credit,Net\n';
       ledger.entries?.forEach(entry => {
         csvContent += [
           formatDate(entry.created_at),
-          entry.type,
-          entry.reference || '',
-          entry.description || '',
+          entry.account_type,
+          entry.reference_type || '',
+          entry.reference_id || '',
           entry.debit || 0,
           entry.credit || 0,
-          entry.running_balance || 0
+          (entry.credit || 0) - (entry.debit || 0)
         ].join(',') + '\n';
       });
     }
@@ -234,25 +244,25 @@ export default function Reports() {
                 <div className="bg-white rounded-lg shadow p-4">
                   <p className="text-sm text-gray-500">Total Sales</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {formatCurrency(dailySales?.summary?.totalSales || 0)}
+                    {formatCurrency(dailySales?.summary?.total_sales || 0)}
                   </p>
                 </div>
                 <div className="bg-white rounded-lg shadow p-4">
                   <p className="text-sm text-gray-500">Transactions</p>
                   <p className="text-2xl font-bold text-blue-600">
-                    {dailySales?.summary?.transactionCount || 0}
+                    {dailySales?.summary?.total_transactions || 0}
                   </p>
                 </div>
                 <div className="bg-white rounded-lg shadow p-4">
                   <p className="text-sm text-gray-500">Cash Sales</p>
                   <p className="text-2xl font-bold text-green-600">
-                    {formatCurrency(dailySales?.summary?.cashSales || 0)}
+                    {formatCurrency(dailySales?.summary?.cash_received || 0)}
                   </p>
                 </div>
                 <div className="bg-white rounded-lg shadow p-4">
                   <p className="text-sm text-gray-500">Credit Sales</p>
                   <p className="text-2xl font-bold text-yellow-600">
-                    {formatCurrency(dailySales?.summary?.creditSales || 0)}
+                    {formatCurrency(dailySales?.summary?.credit_sales || 0)}
                   </p>
                 </div>
               </div>
@@ -279,15 +289,15 @@ export default function Reports() {
                       </tr>
                     ) : (
                       dailySales?.sales?.map(sale => (
-                        <tr key={sale.id} className={sale.is_void ? 'bg-red-50' : ''}>
-                          <td className="px-6 py-4 text-sm font-mono">{sale.invoice_number}</td>
+                        <tr key={sale.sale_id} className={sale.sale_status === 'VOID' ? 'bg-red-50' : ''}>
+                          <td className="px-6 py-4 text-sm font-mono">SALE-{sale.sale_id}</td>
                           <td className="px-6 py-4 text-sm text-gray-500">
-                            {new Date(sale.created_at).toLocaleTimeString()}
+                            {new Date(sale.sale_date).toLocaleTimeString()}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-900">
-                            {sale.customer?.name || 'Walk-in'}
+                            {sale.customer || 'Walk-in'}
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-500">{sale.user?.username}</td>
+                          <td className="px-6 py-4 text-sm text-gray-500">{sale.cashier}</td>
                           <td className="px-6 py-4 text-center">
                             <span className="px-2 py-1 text-xs font-medium bg-gray-100 rounded-full">
                               {sale.payment_method}
@@ -335,12 +345,12 @@ export default function Reports() {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Account Type</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reference Type</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reference ID</th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Debit</th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Credit</th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -352,17 +362,17 @@ export default function Reports() {
                       </tr>
                     ) : (
                       ledger?.entries?.map(entry => (
-                        <tr key={entry.id}>
+                        <tr key={entry.ledger_id}>
                           <td className="px-6 py-4 text-sm text-gray-500">
                             {formatDate(entry.created_at)}
                           </td>
                           <td className="px-6 py-4">
                             <span className="px-2 py-1 text-xs font-medium bg-gray-100 rounded-full">
-                              {entry.type}
+                              {entry.account_type}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-sm font-mono">{entry.reference || '-'}</td>
-                          <td className="px-6 py-4 text-sm text-gray-900">{entry.description || '-'}</td>
+                          <td className="px-6 py-4 text-sm font-mono">{entry.reference_type || '-'}</td>
+                          <td className="px-6 py-4 text-sm text-gray-900">{entry.reference_id ? `#${entry.reference_id}` : '-'}</td>
                           <td className="px-6 py-4 text-right text-sm text-red-600">
                             {entry.debit ? formatCurrency(entry.debit) : '-'}
                           </td>
@@ -370,7 +380,7 @@ export default function Reports() {
                             {entry.credit ? formatCurrency(entry.credit) : '-'}
                           </td>
                           <td className="px-6 py-4 text-right font-medium">
-                            {formatCurrency(entry.running_balance || 0)}
+                            {formatCurrency((entry.credit || 0) - (entry.debit || 0))}
                           </td>
                         </tr>
                       ))

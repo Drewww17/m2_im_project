@@ -4,7 +4,6 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import toast from 'react-hot-toast';
 import { 
   PlusIcon, 
-  MagnifyingGlassIcon, 
   EyeIcon, 
   TruckIcon,
   TrashIcon,
@@ -15,7 +14,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 export default function PurchaseOrders() {
   const [orders, setOrders] = useState([]);
   const [restockAlerts, setRestockAlerts] = useState([]);
-  const [suppliers, setSuppliers] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -23,37 +22,39 @@ export default function PurchaseOrders() {
   const [showReceiveModal, setShowReceiveModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [filters, setFilters] = useState({
-    status: '',
-    supplier_id: ''
+    poStatus: '',
+    customerId: ''
   });
 
   const [createForm, setCreateForm] = useState({
-    supplier_id: '',
-    notes: '',
-    items: [{ product_id: '', quantity: '', unit_cost: '' }]
+    customerId: '',
+    remarks: '',
+    outstandingBalance: '',
+    items: [{ productId: '', quantity: '' }]
   });
 
   const [receiveForm, setReceiveForm] = useState({
-    items: []
+    items: [],
+    remarks: ''
   });
 
   useEffect(() => {
     fetchOrders();
     fetchRestockAlerts();
-    fetchSuppliers();
+    fetchCustomers();
     fetchProducts();
   }, []);
 
   const fetchOrders = async () => {
     try {
       const params = new URLSearchParams();
-      if (filters.status) params.append('status', filters.status);
-      if (filters.supplier_id) params.append('supplier_id', filters.supplier_id);
+      if (filters.poStatus) params.append('poStatus', filters.poStatus);
+      if (filters.customerId) params.append('customerId', filters.customerId);
       
       const res = await fetch(`/api/purchase-orders?${params}`);
       const data = await res.json();
       if (res.ok) {
-        setOrders(data.purchaseOrders || []);
+        setOrders(data.orders || []);
       } else {
         toast.error(data.error);
       }
@@ -68,29 +69,29 @@ export default function PurchaseOrders() {
     try {
       const res = await fetch('/api/purchase-orders/restock-alerts');
       const data = await res.json();
-      if (res.ok) {
-        setRestockAlerts(data.alerts || []);
+      if (res.ok && data.alerts) {
+        setRestockAlerts(data.alerts.products || []);
       }
     } catch (error) {
       console.error('Failed to fetch restock alerts');
     }
   };
 
-  const fetchSuppliers = async () => {
+  const fetchCustomers = async () => {
     try {
-      const res = await fetch('/api/suppliers');
+      const res = await fetch('/api/customers');
       const data = await res.json();
       if (res.ok) {
-        setSuppliers(data.suppliers || []);
+        setCustomers(data.customers || []);
       }
     } catch (error) {
-      console.error('Failed to fetch suppliers');
+      console.error('Failed to fetch customers');
     }
   };
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch('/api/products?limit=100');
+      const res = await fetch('/api/products?pageSize=100');
       const data = await res.json();
       if (res.ok) {
         setProducts(data.products || []);
@@ -110,7 +111,7 @@ export default function PurchaseOrders() {
   const handleCreateOrder = async (e) => {
     e.preventDefault();
     try {
-      const items = createForm.items.filter(item => item.product_id && item.quantity);
+      const items = createForm.items.filter(item => item.productId && item.quantity);
       if (items.length === 0) {
         toast.error('Please add at least one item');
         return;
@@ -120,12 +121,12 @@ export default function PurchaseOrders() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          supplier_id: parseInt(createForm.supplier_id),
-          notes: createForm.notes,
+          customerId: parseInt(createForm.customerId),
+          outstandingBalance: parseFloat(createForm.outstandingBalance) || 0,
+          remarks: createForm.remarks,
           items: items.map(item => ({
-            product_id: parseInt(item.product_id),
-            quantity: parseInt(item.quantity),
-            unit_cost: parseFloat(item.unit_cost) || undefined
+            productId: parseInt(item.productId),
+            quantity: parseInt(item.quantity)
           }))
         })
       });
@@ -135,9 +136,10 @@ export default function PurchaseOrders() {
         toast.success('Purchase order created!');
         setShowCreateModal(false);
         setCreateForm({
-          supplier_id: '',
-          notes: '',
-          items: [{ product_id: '', quantity: '', unit_cost: '' }]
+          customerId: '',
+          remarks: '',
+          outstandingBalance: '',
+          items: [{ productId: '', quantity: '' }]
         });
         fetchOrders();
       } else {
@@ -153,12 +155,25 @@ export default function PurchaseOrders() {
     if (!selectedOrder) return;
 
     try {
-      const items = receiveForm.items.filter(item => item.quantity_received > 0);
+      const items = receiveForm.items
+        .filter(item => item.quantity > 0)
+        .map(item => ({
+          poDetailId: item.poDetailId,
+          quantity: item.quantity
+        }));
+
+      if (items.length === 0) {
+        toast.error('Please specify quantities to receive');
+        return;
+      }
       
-      const res = await fetch(`/api/purchase-orders/${selectedOrder.id}/receive`, {
+      const res = await fetch(`/api/purchase-orders/${selectedOrder.po_id}/receive`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items })
+        body: JSON.stringify({ 
+          items,
+          remarks: receiveForm.remarks 
+        })
       });
 
       const data = await res.json();
@@ -193,12 +208,12 @@ export default function PurchaseOrders() {
     }
   };
 
-  const openDetailModal = async (orderId) => {
+  const openDetailModal = async (poId) => {
     try {
-      const res = await fetch(`/api/purchase-orders/${orderId}`);
+      const res = await fetch(`/api/purchase-orders/${poId}`);
       const data = await res.json();
       if (res.ok) {
-        setSelectedOrder(data.purchaseOrder);
+        setSelectedOrder(data.order);
         setShowDetailModal(true);
       } else {
         toast.error(data.error);
@@ -208,20 +223,19 @@ export default function PurchaseOrders() {
     }
   };
 
-  const openReceiveModal = async (orderId) => {
+  const openReceiveModal = async (poId) => {
     try {
-      const res = await fetch(`/api/purchase-orders/${orderId}`);
+      const res = await fetch(`/api/purchase-orders/${poId}`);
       const data = await res.json();
       if (res.ok) {
-        setSelectedOrder(data.purchaseOrder);
+        setSelectedOrder(data.order);
         setReceiveForm({
-          items: data.purchaseOrder.details.map(item => ({
-            product_id: item.product_id,
-            product_name: item.product?.name,
-            quantity_ordered: item.quantity,
-            quantity_received: item.quantity - (item.quantity_received || 0),
-            batch_number: '',
-            expiration_date: ''
+          remarks: '',
+          items: (data.order.purchase_order_details || []).map(item => ({
+            poDetailId: item.po_detail_id,
+            productName: item.products?.product_name || 'Unknown Product',
+            quantityOrdered: item.quantity || 0,
+            quantity: item.quantity || 0
           }))
         });
         setShowReceiveModal(true);
@@ -236,7 +250,7 @@ export default function PurchaseOrders() {
   const addItem = () => {
     setCreateForm({
       ...createForm,
-      items: [...createForm.items, { product_id: '', quantity: '', unit_cost: '' }]
+      items: [...createForm.items, { productId: '', quantity: '' }]
     });
   };
 
@@ -256,8 +270,7 @@ export default function PurchaseOrders() {
   const getStatusBadge = (status) => {
     const colors = {
       PENDING: 'bg-yellow-100 text-yellow-800',
-      PARTIAL: 'bg-blue-100 text-blue-800',
-      COMPLETE: 'bg-green-100 text-green-800',
+      RECEIVED: 'bg-green-100 text-green-800',
       CANCELLED: 'bg-red-100 text-red-800'
     };
     return (
@@ -296,8 +309,8 @@ export default function PurchaseOrders() {
               <h3 className="font-medium text-orange-800 mb-2">Restock Required</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {restockAlerts.slice(0, 8).map(product => (
-                  <div key={product.id} className="text-sm text-orange-600">
-                    {product.name}: {product.current_stock}/{product.reorder_level}
+                  <div key={product.product_id} className="text-sm text-orange-600">
+                    {product.product_name}: {product.current_stock}/{product.reorder_level}
                   </div>
                 ))}
               </div>
@@ -307,24 +320,23 @@ export default function PurchaseOrders() {
           {/* Filters */}
           <div className="flex gap-4">
             <select
-              value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              value={filters.poStatus}
+              onChange={(e) => setFilters({ ...filters, poStatus: e.target.value })}
               className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
             >
               <option value="">All Status</option>
               <option value="PENDING">Pending</option>
-              <option value="PARTIAL">Partial</option>
-              <option value="COMPLETE">Complete</option>
+              <option value="RECEIVED">Received</option>
               <option value="CANCELLED">Cancelled</option>
             </select>
             <select
-              value={filters.supplier_id}
-              onChange={(e) => setFilters({ ...filters, supplier_id: e.target.value })}
+              value={filters.customerId}
+              onChange={(e) => setFilters({ ...filters, customerId: e.target.value })}
               className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
             >
-              <option value="">All Suppliers</option>
-              {suppliers.map(s => (
-                <option key={s.id} value={s.id}>{s.name}</option>
+              <option value="">All Customers</option>
+              {customers.map(c => (
+                <option key={c.customer_id} value={c.customer_id}>{c.customer_name}</option>
               ))}
             </select>
           </div>
@@ -334,10 +346,10 @@ export default function PurchaseOrders() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">PO Number</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">PO #</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Supplier</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
@@ -353,48 +365,48 @@ export default function PurchaseOrders() {
                   </tr>
                 ) : (
                   orders.map(order => (
-                    <tr key={order.id} className="hover:bg-gray-50">
+                    <tr key={order.po_id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
-                        <span className="font-mono text-sm">{order.po_number}</span>
+                        <span className="font-mono text-sm">PO-{order.po_id}</span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500">
-                        {formatDate(order.created_at)}
+                        {formatDate(order.order_date)}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">
-                        {order.supplier?.name}
+                        {order.customers?.customer_name || 'Unknown'}
                       </td>
                       <td className="px-6 py-4 text-right font-medium">
-                        {formatCurrency(order.total_amount)}
+                        {formatCurrency(order.outstanding_balance)}
                       </td>
                       <td className="px-6 py-4 text-center">
-                        {getStatusBadge(order.status)}
+                        {getStatusBadge(order.po_status)}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex justify-center gap-2">
                           <button
-                            onClick={() => openDetailModal(order.id)}
+                            onClick={() => openDetailModal(order.po_id)}
                             className="p-1 text-blue-600 hover:text-blue-800"
                             title="View Details"
                           >
                             <EyeIcon className="h-5 w-5" />
                           </button>
-                          {(order.status === 'PENDING' || order.status === 'PARTIAL') && (
-                            <button
-                              onClick={() => openReceiveModal(order.id)}
-                              className="p-1 text-green-600 hover:text-green-800"
-                              title="Receive Delivery"
-                            >
-                              <TruckIcon className="h-5 w-5" />
-                            </button>
-                          )}
-                          {order.status === 'PENDING' && (
-                            <button
-                              onClick={() => handleDeleteOrder(order.id)}
-                              className="p-1 text-red-600 hover:text-red-800"
-                              title="Cancel Order"
-                            >
-                              <TrashIcon className="h-5 w-5" />
-                            </button>
+                          {order.po_status === 'PENDING' && (
+                            <>
+                              <button
+                                onClick={() => openReceiveModal(order.po_id)}
+                                className="p-1 text-green-600 hover:text-green-800"
+                                title="Receive / Fulfill"
+                              >
+                                <TruckIcon className="h-5 w-5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteOrder(order.po_id)}
+                                className="p-1 text-red-600 hover:text-red-800"
+                                title="Cancel Order"
+                              >
+                                <TrashIcon className="h-5 w-5" />
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -413,18 +425,30 @@ export default function PurchaseOrders() {
               <h2 className="text-xl font-bold mb-4">Create Purchase Order</h2>
               <form onSubmit={handleCreateOrder} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Supplier *</label>
+                  <label className="block text-sm font-medium text-gray-700">Customer *</label>
                   <select
                     required
-                    value={createForm.supplier_id}
-                    onChange={(e) => setCreateForm({ ...createForm, supplier_id: e.target.value })}
+                    value={createForm.customerId}
+                    onChange={(e) => setCreateForm({ ...createForm, customerId: e.target.value })}
                     className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
                   >
-                    <option value="">Select supplier</option>
-                    {suppliers.map(s => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
+                    <option value="">Select customer</option>
+                    {customers.map(c => (
+                      <option key={c.customer_id} value={c.customer_id}>{c.customer_name}</option>
                     ))}
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Outstanding Balance</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={createForm.outstandingBalance}
+                    onChange={(e) => setCreateForm({ ...createForm, outstandingBalance: e.target.value })}
+                    placeholder="0.00"
+                    className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                  />
                 </div>
 
                 <div>
@@ -432,13 +456,13 @@ export default function PurchaseOrders() {
                   {createForm.items.map((item, index) => (
                     <div key={index} className="flex gap-2 mb-2">
                       <select
-                        value={item.product_id}
-                        onChange={(e) => updateItem(index, 'product_id', e.target.value)}
+                        value={item.productId}
+                        onChange={(e) => updateItem(index, 'productId', e.target.value)}
                         className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
                       >
                         <option value="">Select product</option>
                         {products.map(p => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
+                          <option key={p.product_id} value={p.product_id}>{p.product_name}</option>
                         ))}
                       </select>
                       <input
@@ -447,14 +471,6 @@ export default function PurchaseOrders() {
                         value={item.quantity}
                         onChange={(e) => updateItem(index, 'quantity', e.target.value)}
                         className="w-20 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
-                      />
-                      <input
-                        type="number"
-                        step="0.01"
-                        placeholder="Cost"
-                        value={item.unit_cost}
-                        onChange={(e) => updateItem(index, 'unit_cost', e.target.value)}
-                        className="w-24 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
                       />
                       {createForm.items.length > 1 && (
                         <button
@@ -477,10 +493,10 @@ export default function PurchaseOrders() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Notes</label>
+                  <label className="block text-sm font-medium text-gray-700">Remarks</label>
                   <textarea
-                    value={createForm.notes}
-                    onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
+                    value={createForm.remarks}
+                    onChange={(e) => setCreateForm({ ...createForm, remarks: e.target.value })}
                     rows={2}
                     className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
                   />
@@ -515,19 +531,23 @@ export default function PurchaseOrders() {
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
                   <p className="text-sm text-gray-500">PO Number</p>
-                  <p className="font-mono font-medium">{selectedOrder.po_number}</p>
+                  <p className="font-mono font-medium">PO-{selectedOrder.po_id}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Date</p>
-                  <p className="font-medium">{formatDate(selectedOrder.created_at)}</p>
+                  <p className="font-medium">{formatDate(selectedOrder.order_date)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Supplier</p>
-                  <p className="font-medium">{selectedOrder.supplier?.name}</p>
+                  <p className="text-sm text-gray-500">Customer</p>
+                  <p className="font-medium">{selectedOrder.customers?.customer_name || 'Unknown'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Status</p>
-                  {getStatusBadge(selectedOrder.status)}
+                  {getStatusBadge(selectedOrder.po_status)}
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Outstanding Balance</p>
+                  <p className="font-medium">{formatCurrency(selectedOrder.outstanding_balance)}</p>
                 </div>
               </div>
 
@@ -535,35 +555,27 @@ export default function PurchaseOrders() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Ordered</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Received</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Unit Cost</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Subtotal</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Unit</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {selectedOrder.details?.map((item, index) => (
+                  {(selectedOrder.purchase_order_details || []).map((item, index) => (
                     <tr key={index}>
-                      <td className="px-4 py-2 text-sm">{item.product?.name}</td>
+                      <td className="px-4 py-2 text-sm">{item.products?.product_name || 'Unknown'}</td>
+                      <td className="px-4 py-2 text-sm text-gray-500">{item.products?.product_code || '-'}</td>
                       <td className="px-4 py-2 text-sm text-right">{item.quantity}</td>
-                      <td className="px-4 py-2 text-sm text-right">{item.quantity_received || 0}</td>
-                      <td className="px-4 py-2 text-sm text-right">{formatCurrency(item.unit_cost)}</td>
-                      <td className="px-4 py-2 text-sm text-right font-medium">{formatCurrency(item.subtotal)}</td>
+                      <td className="px-4 py-2 text-sm text-right">{item.products?.unit || '-'}</td>
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="bg-gray-50">
-                  <tr>
-                    <td colSpan="4" className="px-4 py-2 text-right font-medium">Total:</td>
-                    <td className="px-4 py-2 text-right font-bold">{formatCurrency(selectedOrder.total_amount)}</td>
-                  </tr>
-                </tfoot>
               </table>
 
-              {selectedOrder.notes && (
+              {selectedOrder.remarks && (
                 <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-500">Notes</p>
-                  <p className="text-sm">{selectedOrder.notes}</p>
+                  <p className="text-sm text-gray-500">Remarks</p>
+                  <p className="text-sm">{selectedOrder.remarks}</p>
                 </div>
               )}
 
@@ -583,56 +595,30 @@ export default function PurchaseOrders() {
         {showReceiveModal && selectedOrder && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-              <h2 className="text-xl font-bold mb-4">Receive Delivery</h2>
+              <h2 className="text-xl font-bold mb-4">Receive / Fulfill Order</h2>
               <p className="text-sm text-gray-500 mb-4">
-                PO: {selectedOrder.po_number} | Supplier: {selectedOrder.supplier?.name}
+                PO-{selectedOrder.po_id} | Customer: {selectedOrder.customers?.customer_name || 'Unknown'}
               </p>
               
               <form onSubmit={handleReceiveOrder} className="space-y-4">
                 {receiveForm.items.map((item, index) => (
                   <div key={index} className="p-4 border rounded-lg">
-                    <p className="font-medium mb-2">{item.product_name}</p>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <p className="font-medium mb-2">{item.productName}</p>
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs text-gray-500">Ordered</label>
-                        <p className="font-medium">{item.quantity_ordered}</p>
+                        <p className="font-medium">{item.quantityOrdered}</p>
                       </div>
                       <div>
                         <label className="block text-xs text-gray-500">Receiving</label>
                         <input
                           type="number"
                           min="0"
-                          max={item.quantity_ordered}
-                          value={item.quantity_received}
+                          max={item.quantityOrdered}
+                          value={item.quantity}
                           onChange={(e) => {
                             const newItems = [...receiveForm.items];
-                            newItems[index].quantity_received = parseInt(e.target.value) || 0;
-                            setReceiveForm({ ...receiveForm, items: newItems });
-                          }}
-                          className="w-full px-2 py-1 border rounded focus:ring-2 focus:ring-green-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-500">Batch #</label>
-                        <input
-                          type="text"
-                          value={item.batch_number}
-                          onChange={(e) => {
-                            const newItems = [...receiveForm.items];
-                            newItems[index].batch_number = e.target.value;
-                            setReceiveForm({ ...receiveForm, items: newItems });
-                          }}
-                          className="w-full px-2 py-1 border rounded focus:ring-2 focus:ring-green-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-500">Expiry</label>
-                        <input
-                          type="date"
-                          value={item.expiration_date}
-                          onChange={(e) => {
-                            const newItems = [...receiveForm.items];
-                            newItems[index].expiration_date = e.target.value;
+                            newItems[index].quantity = parseInt(e.target.value) || 0;
                             setReceiveForm({ ...receiveForm, items: newItems });
                           }}
                           className="w-full px-2 py-1 border rounded focus:ring-2 focus:ring-green-500"
@@ -641,6 +627,16 @@ export default function PurchaseOrders() {
                     </div>
                   </div>
                 ))}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Remarks (optional)</label>
+                  <textarea
+                    value={receiveForm.remarks}
+                    onChange={(e) => setReceiveForm({ ...receiveForm, remarks: e.target.value })}
+                    rows={2}
+                    className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
 
                 <div className="flex gap-4 pt-4">
                   <button
