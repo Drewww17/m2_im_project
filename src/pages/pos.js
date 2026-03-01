@@ -7,10 +7,41 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import toast, { Toaster } from 'react-hot-toast';
 
 function formatCurrency(amount) {
+  const safeAmount = Number.isFinite(Number(amount)) ? Number(amount) : 0;
   return new Intl.NumberFormat('en-PH', {
     style: 'currency',
     currency: 'PHP'
-  }).format(amount);
+  }).format(safeAmount);
+}
+
+function toNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function getReceiptData(sale) {
+  const items = sale?.sale_details || [];
+  const itemsSubtotal = items.reduce((sum, item) => {
+    const quantity = toNumber(item.quantity, 0);
+    const unitPrice = toNumber(item.unit_price, 0);
+    const lineTotal = toNumber(item.subtotal, quantity * unitPrice);
+    return sum + lineTotal;
+  }, 0);
+
+  const discount = toNumber(sale?.discount, 0);
+  const subtotal = toNumber(sale?.subtotal, itemsSubtotal);
+  const totalAmount = toNumber(sale?.total_amount, Math.max(0, subtotal - discount));
+  const amountPaid = toNumber(sale?.amount_paid, totalAmount);
+  const changeAmount = toNumber(sale?.change_amount, Math.max(0, amountPaid - totalAmount));
+
+  return {
+    subtotal,
+    discount,
+    totalAmount,
+    amountPaid,
+    changeAmount,
+    items,
+  };
 }
 
 function printReceiptPDF(sale) {
@@ -18,15 +49,10 @@ function printReceiptPDF(sale) {
 
   const saleDate = sale.sale_date ? new Date(sale.sale_date) : new Date();
   const receiptNo = sale.invoice_number || `SALE-${sale.sale_id}`;
-  const subtotal = Number(sale.subtotal ?? sale.total_amount ?? 0);
-  const discount = Number(sale.discount ?? 0);
-  const totalAmount = Number(sale.total_amount ?? subtotal - discount);
-  const amountPaid = Number(sale.amount_paid ?? totalAmount);
-  const changeAmount = Number(sale.change_amount ?? Math.max(0, amountPaid - totalAmount));
+  const { subtotal, discount, totalAmount, amountPaid, changeAmount, items } = getReceiptData(sale);
   const receiptRemarks = (sale.remarks || sale.notes || '').trim();
   const handledBy = sale.handled_by?.full_name || sale.handled_by?.username || 'Unknown User';
   const deliveryInfo = sale.delivery?.[0] || null;
-  const items = sale.sale_details || [];
 
   const rows = items.map((item) => {
     const productName = item.products?.product_name || item.product?.product_name || 'Item';
@@ -91,6 +117,120 @@ function printReceiptPDF(sale) {
   setTimeout(() => {
     printWindow.print();
   }, 200);
+}
+
+async function downloadReceiptPDF(sale) {
+  if (!sale) return;
+
+  const { jsPDF } = await import('jspdf');
+
+  const saleDate = sale.sale_date ? new Date(sale.sale_date) : new Date();
+  const receiptNo = sale.invoice_number || `SALE-${sale.sale_id}`;
+  const { subtotal, discount, totalAmount, amountPaid, changeAmount, items } = getReceiptData(sale);
+  const receiptRemarks = (sale.remarks || sale.notes || '').trim();
+  const handledBy = sale.handled_by?.full_name || sale.handled_by?.username || 'Unknown User';
+  const deliveryInfo = sale.delivery?.[0] || null;
+
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  let y = 48;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.text('AgriVet Store', 40, y);
+  y += 20;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.text('Official Receipt', 40, y);
+  y += 18;
+  doc.text(`Date: ${saleDate.toLocaleString('en-PH')}`, 40, y);
+  y += 16;
+  doc.text(`Receipt No: ${receiptNo}`, 40, y);
+  y += 16;
+  doc.text(`Handled By: ${handledBy}`, 40, y);
+  y += 16;
+  doc.text(`Order Type: ${deliveryInfo ? 'DELIVERY' : 'PICKUP'}`, 40, y);
+  y += 16;
+  if (deliveryInfo?.delivery_address) {
+    doc.text(`Address: ${deliveryInfo.delivery_address}`, 40, y);
+    y += 16;
+  }
+
+  y += 8;
+  doc.setDrawColor(0);
+  doc.line(40, y, 555, y);
+  y += 16;
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Item', 40, y);
+  doc.text('Qty', 325, y, { align: 'right' });
+  doc.text('Price', 430, y, { align: 'right' });
+  doc.text('Total', 555, y, { align: 'right' });
+  y += 12;
+  doc.line(40, y, 555, y);
+  y += 16;
+
+  doc.setFont('helvetica', 'normal');
+  for (const item of items) {
+    const productName = item.products?.product_name || item.product?.product_name || 'Item';
+    const quantity = toNumber(item.quantity, 0);
+    const unitPrice = toNumber(item.unit_price, 0);
+    const lineTotal = toNumber(item.subtotal, quantity * unitPrice);
+
+    doc.text(productName, 40, y);
+    doc.text(String(quantity), 325, y, { align: 'right' });
+    doc.text(formatCurrency(unitPrice), 430, y, { align: 'right' });
+    doc.text(formatCurrency(lineTotal), 555, y, { align: 'right' });
+    y += 18;
+
+    if (y > 760) {
+      doc.addPage();
+      y = 48;
+    }
+  }
+
+  y += 6;
+  doc.line(40, y, 555, y);
+  y += 20;
+
+  doc.text('Subtotal', 40, y);
+  doc.text(formatCurrency(subtotal), 555, y, { align: 'right' });
+  y += 16;
+
+  if (discount > 0) {
+    doc.text('Discount', 40, y);
+    doc.text(`-${formatCurrency(discount)}`, 555, y, { align: 'right' });
+    y += 16;
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.text('Total', 40, y);
+  doc.text(formatCurrency(totalAmount), 555, y, { align: 'right' });
+  y += 18;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(11);
+  doc.text('Amount Paid', 40, y);
+  doc.text(formatCurrency(amountPaid), 555, y, { align: 'right' });
+  y += 16;
+  doc.text('Change', 40, y);
+  doc.text(formatCurrency(changeAmount), 555, y, { align: 'right' });
+  y += 22;
+
+  if (receiptRemarks) {
+    doc.text(`Remarks: ${receiptRemarks}`, 40, y);
+    y += 20;
+  }
+
+  doc.line(40, y, 555, y);
+  y += 24;
+  doc.text('Thank you for your purchase!', 297.5, y, { align: 'center' });
+  y += 16;
+  doc.text('Please come again', 297.5, y, { align: 'center' });
+
+  const safeReceiptNo = String(receiptNo).replace(/[^a-zA-Z0-9-_]/g, '_');
+  doc.save(`receipt-${safeReceiptNo}.pdf`);
 }
 
 export default function POSPage() {
@@ -728,13 +868,27 @@ export default function POSPage() {
                 <p>Please come again</p>
               </div>
 
-              {/* Close Button */}
-              <button
-                onClick={() => setShowReceipt(false)}
-                className="mt-4 w-full py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
-              >
-                Close
-              </button>
+              {/* Action Buttons */}
+              <div className="mt-4 space-y-2">
+                <button
+                  onClick={() => downloadReceiptPDF(lastSale)}
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                >
+                  Download PDF
+                </button>
+                <button
+                  onClick={() => printReceiptPDF(lastSale)}
+                  className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                >
+                  Print Receipt
+                </button>
+                <button
+                  onClick={() => setShowReceipt(false)}
+                  className="w-full py-3 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
