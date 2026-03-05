@@ -29,10 +29,13 @@ export default function LoginPage() {
         toast.success('Login successful!');
         router.push('/pos');
       } else {
-        const errorMessage = result.code
+        let errorMessage = result.code
           ? `${result.error || 'Login failed'} (${result.code})`
           : (result.error || 'Login failed');
-        toast.error(errorMessage);
+        if (result.hint) {
+          errorMessage += ` — ${result.hint}`;
+        }
+        toast.error(errorMessage, { duration: 8000 });
       }
     } catch (error) {
       toast.error('An error occurred');

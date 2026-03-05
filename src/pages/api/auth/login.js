@@ -124,34 +124,43 @@ async function login(req, res) {
   } catch (error) {
     console.error('Login error:', error);
 
-    if (error?.code === 'P2021') {
+    const prismaCode = error?.code;
+    const errorName = error?.name || '';
+    const errorMsg = error?.message || '';
+
+    // Known Prisma error codes
+    const prismaErrors = {
+      P1000: 'Database authentication failed',
+      P1001: 'Cannot reach database server',
+      P1002: 'Database server timed out',
+      P1003: 'Database does not exist',
+      P1008: 'Database operation timed out',
+      P1017: 'Database server closed the connection',
+      P2002: 'Duplicate record conflict',
+      P2021: 'Database table does not exist (schema not pushed)',
+      P2010: 'Raw query failed',
+    };
+
+    if (prismaCode && prismaErrors[prismaCode]) {
       return res.status(500).json({
         success: false,
-        error: 'Database schema is not initialized',
-        code: 'DB_SCHEMA_MISSING'
+        error: prismaErrors[prismaCode],
+        code: `DB_${prismaCode}`
       });
     }
 
-    if (error?.code === 'P1001') {
-      return res.status(500).json({
-        success: false,
-        error: 'Cannot reach database server',
-        code: 'DB_UNREACHABLE'
-      });
-    }
-
-    if (error?.code === 'P1000') {
-      return res.status(500).json({
-        success: false,
-        error: 'Database authentication failed',
-        code: 'DB_AUTH_FAILED'
-      });
-    }
+    // Surface enough detail to diagnose remotely
+    const debugHint = prismaCode
+      ? `Prisma ${prismaCode}`
+      : errorName
+        ? `${errorName}: ${errorMsg.slice(0, 120)}`
+        : errorMsg.slice(0, 120);
 
     return res.status(500).json({
       success: false,
       error: 'Login failed due to server configuration',
-      code: 'LOGIN_SERVER_ERROR'
+      code: 'LOGIN_SERVER_ERROR',
+      hint: debugHint
     });
   }
 }
