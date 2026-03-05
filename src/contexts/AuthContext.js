@@ -4,7 +4,6 @@
  */
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import Cookies from 'js-cookie';
 
 const AuthContext = createContext(null);
 
@@ -17,14 +16,36 @@ export function AuthProvider({ children }) {
     checkAuth();
   }, []);
 
+  const refreshSession = async () => {
+    const refreshRes = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      credentials: 'same-origin'
+    });
+
+    return refreshRes.ok;
+  };
+
   const checkAuth = async () => {
     try {
-      const res = await fetch('/api/auth/me');
+      const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
       } else {
-        setUser(null);
+        const didRefresh = await refreshSession();
+
+        if (!didRefresh) {
+          setUser(null);
+          return;
+        }
+
+        const retryRes = await fetch('/api/auth/me', { credentials: 'same-origin' });
+        if (retryRes.ok) {
+          const retryData = await retryRes.json();
+          setUser(retryData.user);
+        } else {
+          setUser(null);
+        }
       }
     } catch (error) {
       console.error('Auth check error:', error);
@@ -38,13 +59,13 @@ export function AuthProvider({ children }) {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
       body: JSON.stringify({ username, password })
     });
 
     const data = await res.json();
 
     if (data.success) {
-      Cookies.set('token', data.token, { expires: 1 });
       setUser(data.user);
       return { success: true };
     }
@@ -53,8 +74,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    Cookies.remove('token');
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
     setUser(null);
     router.push('/login');
   };

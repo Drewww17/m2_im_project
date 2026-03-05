@@ -1,62 +1,56 @@
 /**
- * Authentication API Routes
- * Handles user login, logout, and registration
+ * Refresh Session API Route
+ * Issues a new short-lived access token using a valid refresh token cookie
  */
 import prisma from '@/lib/prisma';
 import {
-  verifyPassword,
+  verifyRefreshToken,
   generateAccessToken,
   generateRefreshToken,
   getAccessCookieMaxAgeSeconds,
   getRefreshCookieMaxAgeSeconds
 } from '@/lib/auth';
 import { apiHandler } from '@/middleware/withAuth';
-import { validateRequired } from '@/lib/utils';
 import { serialize } from 'cookie';
 
-/**
- * POST /api/auth/login
- * Authenticate user and return JWT token
- */
-async function login(req, res) {
-  const { username, password } = req.body;
-  
-  // Validate required fields
-  const validation = validateRequired(req.body, ['username', 'password']);
-  if (!validation.valid) {
-    return res.status(400).json({
+async function refreshSession(req, res) {
+  const refreshToken = req.cookies?.refreshToken;
+
+  if (!refreshToken) {
+    return res.status(401).json({
       success: false,
-      error: 'Missing required fields',
-      missing: validation.missing
+      error: 'Refresh token is required',
+      code: 'NO_REFRESH_TOKEN'
     });
   }
-  
-  try {
-    // Find user by username
-    const user = await prisma.users.findUnique({
-      where: { username: username.toLowerCase() }
+
+  const decoded = verifyRefreshToken(refreshToken);
+
+  if (!decoded) {
+    return res.status(401).json({
+      success: false,
+      error: 'Invalid or expired refresh token',
+      code: 'INVALID_REFRESH_TOKEN'
     });
-    
+  }
+
+  try {
+    const user = await prisma.users.findUnique({
+      where: { user_id: decoded.userId }
+    });
+
     if (!user || !user.is_active) {
       return res.status(401).json({
         success: false,
-        error: 'Invalid credentials'
+        error: 'User is inactive or does not exist',
+        code: 'INVALID_USER'
       });
     }
-    
-    // Verify password
-    const isValid = await verifyPassword(password, user.password_hash);
-    
-    if (!isValid) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid credentials'
-      });
-    }
-    
-    // Generate access + refresh tokens
+
     const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
+    // Rotate refresh token each refresh call to limit replay windows.
+    const newRefreshToken = generateRefreshToken(user);
+
     const accessCookieMaxAge = getAccessCookieMaxAgeSeconds();
     const refreshCookieMaxAge = getRefreshCookieMaxAgeSeconds();
 
@@ -77,18 +71,16 @@ async function login(req, res) {
     if (refreshCookieMaxAge !== null) {
       refreshCookieOptions.maxAge = refreshCookieMaxAge;
     }
-    
-    // Set HTTP-only access + refresh cookies
+
     res.setHeader('Set-Cookie', [
       serialize('accessToken', accessToken, accessCookieOptions),
-      serialize('refreshToken', refreshToken, refreshCookieOptions),
-      // Keep legacy cookie for backward compatibility while old sessions rotate out
+      serialize('refreshToken', newRefreshToken, refreshCookieOptions),
+      // Keep legacy cookie while clients migrate.
       serialize('token', accessToken, accessCookieOptions)
     ]);
-    
+
     return res.status(200).json({
       success: true,
-      token: accessToken,
       user: {
         userId: user.user_id,
         username: user.username,
@@ -97,14 +89,15 @@ async function login(req, res) {
       }
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('Refresh session error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Login failed'
+      error: 'Failed to refresh session',
+      code: 'REFRESH_ERROR'
     });
   }
 }
 
 export default apiHandler({
-  POST: login
+  POST: refreshSession
 });
