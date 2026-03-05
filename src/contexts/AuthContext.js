@@ -63,14 +63,23 @@ export function AuthProvider({ children }) {
       body: JSON.stringify({ username, password })
     });
 
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      return {
+        success: false,
+        error: 'Server returned an invalid response',
+        code: 'INVALID_RESPONSE'
+      };
+    }
 
     if (data.success) {
       setUser(data.user);
       return { success: true };
     }
 
-    return { success: false, error: data.error };
+    return { success: false, error: data.error, code: data.code };
   };
 
   const logout = async () => {

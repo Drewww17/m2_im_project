@@ -10,10 +10,35 @@ import {
   getAccessCookieMaxAgeSeconds,
   getRefreshCookieMaxAgeSeconds
 } from '@/lib/auth';
+import { consumeRateLimit, getRequestIp } from '@/lib/rateLimit';
 import { apiHandler } from '@/middleware/withAuth';
 import { serialize } from 'cookie';
 
+const REFRESH_RATE_LIMIT = Number(process.env.AUTH_REFRESH_RATE_LIMIT || 30);
+const REFRESH_WINDOW_MS = Number(process.env.AUTH_REFRESH_WINDOW_MS || 60_000);
+
 async function refreshSession(req, res) {
+  const ip = getRequestIp(req);
+  const rateCheck = consumeRateLimit({
+    bucketName: 'auth-refresh',
+    key: ip,
+    limit: REFRESH_RATE_LIMIT,
+    windowMs: REFRESH_WINDOW_MS
+  });
+
+  res.setHeader('X-RateLimit-Limit', String(REFRESH_RATE_LIMIT));
+  res.setHeader('X-RateLimit-Remaining', String(rateCheck.remaining));
+
+  if (!rateCheck.allowed) {
+    res.setHeader('Retry-After', String(rateCheck.retryAfterSeconds));
+    return res.status(429).json({
+      success: false,
+      error: 'Too many refresh attempts. Please try again later.',
+      code: 'RATE_LIMITED',
+      retryAfterSeconds: rateCheck.retryAfterSeconds
+    });
+  }
+
   const refreshToken = req.cookies?.refreshToken;
 
   if (!refreshToken) {

@@ -10,9 +10,13 @@ import {
   getAccessCookieMaxAgeSeconds,
   getRefreshCookieMaxAgeSeconds
 } from '@/lib/auth';
+import { consumeRateLimit, getRequestIp } from '@/lib/rateLimit';
 import { apiHandler } from '@/middleware/withAuth';
 import { validateRequired } from '@/lib/utils';
 import { serialize } from 'cookie';
+
+const LOGIN_RATE_LIMIT = Number(process.env.AUTH_LOGIN_RATE_LIMIT || 10);
+const LOGIN_WINDOW_MS = Number(process.env.AUTH_LOGIN_WINDOW_MS || 60_000);
 
 /**
  * POST /api/auth/login
@@ -20,6 +24,27 @@ import { serialize } from 'cookie';
  */
 async function login(req, res) {
   const { username, password } = req.body;
+  const ip = getRequestIp(req);
+  const limiterKey = `${ip}:${String(username || '').toLowerCase()}`;
+  const rateCheck = consumeRateLimit({
+    bucketName: 'auth-login',
+    key: limiterKey,
+    limit: LOGIN_RATE_LIMIT,
+    windowMs: LOGIN_WINDOW_MS
+  });
+
+  res.setHeader('X-RateLimit-Limit', String(LOGIN_RATE_LIMIT));
+  res.setHeader('X-RateLimit-Remaining', String(rateCheck.remaining));
+
+  if (!rateCheck.allowed) {
+    res.setHeader('Retry-After', String(rateCheck.retryAfterSeconds));
+    return res.status(429).json({
+      success: false,
+      error: 'Too many login attempts. Please try again later.',
+      code: 'RATE_LIMITED',
+      retryAfterSeconds: rateCheck.retryAfterSeconds
+    });
+  }
   
   // Validate required fields
   const validation = validateRequired(req.body, ['username', 'password']);
@@ -98,9 +123,35 @@ async function login(req, res) {
     });
   } catch (error) {
     console.error('Login error:', error);
+
+    if (error?.code === 'P2021') {
+      return res.status(500).json({
+        success: false,
+        error: 'Database schema is not initialized',
+        code: 'DB_SCHEMA_MISSING'
+      });
+    }
+
+    if (error?.code === 'P1001') {
+      return res.status(500).json({
+        success: false,
+        error: 'Cannot reach database server',
+        code: 'DB_UNREACHABLE'
+      });
+    }
+
+    if (error?.code === 'P1000') {
+      return res.status(500).json({
+        success: false,
+        error: 'Database authentication failed',
+        code: 'DB_AUTH_FAILED'
+      });
+    }
+
     return res.status(500).json({
       success: false,
-      error: 'Login failed'
+      error: 'Login failed due to server configuration',
+      code: 'LOGIN_SERVER_ERROR'
     });
   }
 }
