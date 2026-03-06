@@ -4,8 +4,9 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model account_ledger {
@@ -16,7 +17,7 @@ model account_ledger {
   reference_id   Int?
   debit          Decimal?                    @default(0.00) @db.Decimal(15, 2)
   credit         Decimal?                    @default(0.00) @db.Decimal(15, 2)
-  created_at     DateTime                    @default(now()) @db.Timestamp(0)
+  created_at     DateTime                    @default(now()) @db.Timestamptz
 
   @@index([account_type, account_id], map: "idx_ledger_account")
 }
@@ -38,7 +39,7 @@ model customers {
   customer_type   String            @db.VarChar(50)
   contact_number  String?           @db.VarChar(50)
   status          String?           @default("ACTIVE") @db.VarChar(50)
-  created_at      DateTime?         @default(now()) @db.DateTime(0)
+  created_at      DateTime?         @default(now()) @db.Timestamptz
   is_active       Boolean?          @default(true)
   credit_balance  Decimal?          @default(0.00) @db.Decimal(15, 2)
   credit_limit    Decimal?          @default(0.00) @db.Decimal(15, 2)
@@ -52,7 +53,7 @@ model delivery {
   delivery_date    DateTime? @db.Date
   delivery_address String?   @db.VarChar(255)
   delivery_status  String?   @db.VarChar(50)
-  sales            sales?    @relation(fields: [sale_id], references: [sale_id], onDelete: Restrict, onUpdate: Restrict, map: "delivery_ibfk_1")
+  sales            sales?    @relation(fields: [sale_id], references: [sale_id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([sale_id], map: "fk_delivery_sale")
 }
@@ -74,7 +75,7 @@ model inventory {
   expiration_date DateTime? @db.Date
   batch_number    String?   @db.VarChar(100)
   is_active       Boolean   @default(true)
-  products        products? @relation(fields: [product_id], references: [product_id], onDelete: Restrict, onUpdate: Restrict, map: "fk_inventory_product")
+  products        products? @relation(fields: [product_id], references: [product_id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([product_id], map: "idx_inventory_product")
 }
@@ -103,10 +104,10 @@ model products {
   supplier_id            Int?
   source                 products_source?         @default(local)
   is_active              Boolean?                 @default(true)
-  created_at             DateTime?                @default(now()) @db.DateTime(0)
+  created_at             DateTime?                @default(now()) @db.Timestamptz
   unit                   String?                  @db.VarChar(50)
   inventory              inventory[]
-  suppliers              suppliers?               @relation(fields: [supplier_id], references: [supplier_id], map: "fk_products_supplier")
+  suppliers              suppliers?               @relation(fields: [supplier_id], references: [supplier_id])
   purchase_order_details purchase_order_details[]
   sale_details           sale_details[]
   stock_log              stock_log[]
@@ -120,8 +121,8 @@ model purchase_order_details {
   po_id           Int?
   product_id      Int?
   quantity        Int?
-  purchase_orders purchase_orders? @relation(fields: [po_id], references: [po_id], onDelete: Restrict, onUpdate: Restrict, map: "fk_po_details_po")
-  products        products?        @relation(fields: [product_id], references: [product_id], onDelete: Restrict, onUpdate: Restrict, map: "fk_po_details_product")
+  purchase_orders purchase_orders? @relation(fields: [po_id], references: [po_id], onDelete: Restrict, onUpdate: Restrict)
+  products        products?        @relation(fields: [product_id], references: [product_id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([po_id], map: "fk_po_details_po")
   @@index([product_id], map: "idx_purchase_details_product")
@@ -130,15 +131,15 @@ model purchase_order_details {
 model purchase_orders {
   po_id                  Int                      @id @default(autoincrement())
   customer_id            Int?
-  order_date             DateTime?                @db.DateTime(0)
+  order_date             DateTime?                @db.Timestamptz
   po_status              String?                  @db.VarChar(50)
   outstanding_balance    Decimal?                 @db.Decimal(15, 2)
   handled_by             Int?
   remarks                String?                  @db.VarChar(255)
   purchase_order_details purchase_order_details[]
   PO_sales               PO_sales[]
-  customers              customers?               @relation(fields: [customer_id], references: [customer_id], onDelete: Restrict, onUpdate: Restrict, map: "fk_po_customer")
-  employees              employees?               @relation(fields: [handled_by], references: [employee_id], onDelete: Restrict, onUpdate: Restrict, map: "fk_po_employee")
+  customers              customers?               @relation(fields: [customer_id], references: [customer_id], onDelete: Restrict, onUpdate: Restrict)
+  employees              employees?               @relation(fields: [handled_by], references: [employee_id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([customer_id], map: "fk_po_customer")
   @@index([handled_by], map: "fk_po_employee")
@@ -150,8 +151,8 @@ model sale_details {
   product_id     Int?
   quantity       Int?
   unit_price     Decimal?  @db.Decimal(15, 2)
-  products       products? @relation(fields: [product_id], references: [product_id], onDelete: Restrict, onUpdate: Restrict, map: "fk_sale_product")
-  sales          sales?    @relation(fields: [sale_id], references: [sale_id], onDelete: Restrict, onUpdate: Restrict, map: "fk_sale_sales")
+  products       products? @relation(fields: [product_id], references: [product_id], onDelete: Restrict, onUpdate: Restrict)
+  sales          sales?    @relation(fields: [sale_id], references: [sale_id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([sale_id], map: "fk_sale_sales")
   @@index([product_id], map: "idx_sale_details_product")
@@ -166,8 +167,8 @@ model sales {
   customer_id    Int?
   employee_id    Int?
   sale_type      sales_sale_type? @default(regular)
-  created_at     DateTime         @default(now()) @db.Timestamp(0)
-  updated_at     DateTime         @default(now()) @db.Timestamp(0)
+  created_at     DateTime         @default(now()) @db.Timestamptz
+  updated_at     DateTime         @default(now()) @db.Timestamptz
   amount_paid    Decimal?         @default(0.00) @db.Decimal(15, 2)
   is_active      Boolean          @default(true)
   payment_method String?          @db.VarChar(50)
@@ -175,8 +176,8 @@ model sales {
   delivery       delivery[]
   sale_details   sale_details[]
   PO_sales       PO_sales[]
-  customers      customers?       @relation(fields: [customer_id], references: [customer_id], onDelete: Restrict, onUpdate: Restrict, map: "fk_sales_customer")
-  employees      employees?       @relation(fields: [employee_id], references: [employee_id], onDelete: Restrict, onUpdate: Restrict, map: "fk_sales_employee")
+  customers      customers?       @relation(fields: [customer_id], references: [customer_id], onDelete: Restrict, onUpdate: Restrict)
+  employees      employees?       @relation(fields: [employee_id], references: [employee_id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([customer_id], map: "idx_sales_customer")
   @@index([employee_id], map: "idx_sales_employee")
@@ -188,10 +189,10 @@ model stock_log {
   change_type String?    @db.VarChar(50)
   quantity    Int?
   reason      String?    @db.VarChar(255)
-  log_date    DateTime?  @db.DateTime(0)
+  log_date    DateTime?  @db.Timestamptz
   employee_id Int?
-  products    products?  @relation(fields: [product_id], references: [product_id], onDelete: Restrict, onUpdate: Restrict, map: "stock_log_ibfk_1")
-  employees   employees? @relation(fields: [employee_id], references: [employee_id], onDelete: Restrict, onUpdate: Restrict, map: "stock_log_ibfk_2")
+  products    products?  @relation(fields: [product_id], references: [product_id], onDelete: Restrict, onUpdate: Restrict)
+  employees   employees? @relation(fields: [employee_id], references: [employee_id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([employee_id], map: "employee_id")
   @@index([product_id], map: "product_id")
@@ -202,7 +203,7 @@ model suppliers {
   supplier_name   String           @unique(map: "unique_supplier_name") @db.VarChar(255)
   contact_number  String?          @db.VarChar(50)
   is_active       Boolean?         @default(true)
-  created_at      DateTime?        @default(now()) @db.DateTime(0)
+  created_at      DateTime?        @default(now()) @db.Timestamptz
   payable_balance Decimal?         @default(0.00) @db.Decimal(15, 2)
   products        products[]
   supply          supply[]

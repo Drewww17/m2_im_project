@@ -164,17 +164,6 @@ export function parseDecimal(value) {
 }
 
 /**
- * Calculate subtotal for line items
- * @param {number} quantity - Item quantity
- * @param {number} unitPrice - Unit price
- * @param {number} discount - Discount amount (default: 0)
- * @returns {number} Subtotal
- */
-export function calculateSubtotal(quantity, unitPrice, discount = 0) {
-  return (quantity * unitPrice) - discount;
-}
-
-/**
  * Validate required fields in request body
  * @param {Object} body - Request body
  * @param {string[]} requiredFields - List of required field names
