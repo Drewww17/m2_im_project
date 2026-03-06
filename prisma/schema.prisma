@@ -133,6 +133,7 @@ model purchase_orders {
   customer_id            Int?
   order_date             DateTime?                @db.Timestamptz
   po_status              String?                  @db.VarChar(50)
+  priority               purchase_order_priority  @default(NORMAL)
   outstanding_balance    Decimal?                 @db.Decimal(15, 2)
   handled_by             Int?
   remarks                String?                  @db.VarChar(255)
@@ -291,4 +292,10 @@ enum sales_sale_type {
 enum products_source {
   local
   import
+}
+
+enum purchase_order_priority {
+  NORMAL
+  HIGH
+  URGENT
 }

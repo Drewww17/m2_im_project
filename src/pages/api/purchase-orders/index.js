@@ -12,7 +12,7 @@ import { paginate, paginationMeta, parseDecimal } from '@/lib/utils';
  * List purchase orders
  */
 async function getPurchaseOrders(req, res) {
-  const { page, pageSize, customerId, poStatus, startDate, endDate } = req.query;
+  const { page, pageSize, customerId, poStatus, priority, startDate, endDate } = req.query;
   const { skip, take, page: currentPage, pageSize: size } = paginate(page, pageSize);
   
   try {
@@ -20,6 +20,7 @@ async function getPurchaseOrders(req, res) {
     
     if (customerId) where.customer_id = parseInt(customerId);
     if (poStatus) where.po_status = poStatus;
+    if (priority) where.priority = priority;
     
     if (startDate || endDate) {
       where.order_date = {};
@@ -32,7 +33,9 @@ async function getPurchaseOrders(req, res) {
         where,
         skip,
         take,
-        orderBy: { order_date: 'desc' },
+        orderBy: [
+          { order_date: 'desc' }
+        ],
         include: {
           customers: {
             select: { customer_id: true, customer_name: true }
@@ -80,6 +83,7 @@ async function createPurchaseOrder(req, res) {
     customerId,
     items, // Array of { productId, quantity }
     outstandingBalance = 0,
+    priority = 'NORMAL',
     remarks
   } = req.body;
   
@@ -115,6 +119,7 @@ async function createPurchaseOrder(req, res) {
           customer_id: customerId,
           order_date: new Date(),
           po_status: 'PENDING',
+          priority,
           outstanding_balance: outstandingBalance,
           handled_by: req.user.userId,
           remarks,

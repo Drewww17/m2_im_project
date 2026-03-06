@@ -29,6 +29,7 @@ export default function PurchaseOrders() {
     customerId: '',
     remarks: '',
     outstandingBalance: '',
+    priority: 'NORMAL',
     items: [{ productId: '', quantity: '' }]
   });
 
@@ -49,6 +50,7 @@ export default function PurchaseOrders() {
       const params = new URLSearchParams();
       if (filters.poStatus) params.append('poStatus', filters.poStatus);
       if (filters.customerId) params.append('customerId', filters.customerId);
+      if (filters.priority) params.append('priority', filters.priority);
       
       const res = await fetch(`/api/purchase-orders?${params}`);
       const data = await res.json();
@@ -122,6 +124,7 @@ export default function PurchaseOrders() {
         body: JSON.stringify({
           customerId: parseInt(createForm.customerId),
           outstandingBalance: parseFloat(createForm.outstandingBalance) || 0,
+          priority: createForm.priority,
           remarks: createForm.remarks,
           items: items.map(item => ({
             productId: parseInt(item.productId),
@@ -138,6 +141,7 @@ export default function PurchaseOrders() {
           customerId: '',
           remarks: '',
           outstandingBalance: '',
+          priority: 'NORMAL',
           items: [{ productId: '', quantity: '' }]
         });
         fetchOrders();
@@ -279,6 +283,24 @@ export default function PurchaseOrders() {
     );
   };
 
+  const getPriorityBadge = (priority) => {
+    const styles = {
+      URGENT: 'bg-red-100 text-red-800 border border-red-300',
+      HIGH: 'bg-orange-100 text-orange-800 border border-orange-300',
+      NORMAL: 'bg-gray-100 text-gray-600'
+    };
+    const labels = {
+      URGENT: '🔴 URGENT',
+      HIGH: '⭐ VIP',
+      NORMAL: 'Normal'
+    };
+    return (
+      <span className={`px-2 py-1 text-xs font-medium rounded-full ${styles[priority] || styles.NORMAL}`}>
+        {labels[priority] || priority}
+      </span>
+    );
+  };
+
   return (
     <ProtectedRoute requiredRole="CLERK">
         <div className="space-y-6">
@@ -316,7 +338,7 @@ export default function PurchaseOrders() {
           )}
 
           {/* Filters */}
-          <div className="flex gap-4">
+          <div className="flex gap-4 flex-wrap">
             <select
               value={filters.poStatus}
               onChange={(e) => setFilters({ ...filters, poStatus: e.target.value })}
@@ -326,6 +348,16 @@ export default function PurchaseOrders() {
               <option value="PENDING">Pending</option>
               <option value="RECEIVED">Received</option>
               <option value="CANCELLED">Cancelled</option>
+            </select>
+            <select
+              value={filters.priority || ''}
+              onChange={(e) => setFilters({ ...filters, priority: e.target.value })}
+              className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+            >
+              <option value="">All Priority</option>
+              <option value="URGENT">🔴 Urgent</option>
+              <option value="HIGH">⭐ VIP / High</option>
+              <option value="NORMAL">Normal</option>
             </select>
             <select
               value={filters.customerId}
@@ -347,6 +379,7 @@ export default function PurchaseOrders() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">PO #</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Priority</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -355,11 +388,11 @@ export default function PurchaseOrders() {
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan="6" className="px-6 py-4 text-center text-gray-500">Loading...</td>
+                    <td colSpan="7" className="px-6 py-4 text-center text-gray-500">Loading...</td>
                   </tr>
                 ) : orders.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="px-6 py-4 text-center text-gray-500">No purchase orders found</td>
+                    <td colSpan="7" className="px-6 py-4 text-center text-gray-500">No purchase orders found</td>
                   </tr>
                 ) : (
                   orders.map(order => (
@@ -372,6 +405,9 @@ export default function PurchaseOrders() {
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">
                         {order.customers?.customer_name || 'Unknown'}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        {getPriorityBadge(order.priority)}
                       </td>
                       <td className="px-6 py-4 text-right font-medium">
                         {formatCurrency(order.outstanding_balance)}
@@ -447,6 +483,19 @@ export default function PurchaseOrders() {
                     placeholder="0.00"
                     className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Priority</label>
+                  <select
+                    value={createForm.priority}
+                    onChange={(e) => setCreateForm({ ...createForm, priority: e.target.value })}
+                    className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                  >
+                    <option value="NORMAL">Normal</option>
+                    <option value="HIGH">⭐ VIP / High Priority</option>
+                    <option value="URGENT">🔴 Urgent</option>
+                  </select>
                 </div>
 
                 <div>
@@ -542,6 +591,10 @@ export default function PurchaseOrders() {
                 <div>
                   <p className="text-sm text-gray-500">Status</p>
                   {getStatusBadge(selectedOrder.po_status)}
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Priority</p>
+                  {getPriorityBadge(selectedOrder.priority)}
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Outstanding Balance</p>
