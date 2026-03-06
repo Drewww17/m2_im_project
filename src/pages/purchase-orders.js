@@ -463,14 +463,28 @@ export default function PurchaseOrders() {
                   <select
                     required
                     value={createForm.customerId}
-                    onChange={(e) => setCreateForm({ ...createForm, customerId: e.target.value })}
+                    onChange={(e) => {
+                      const customerId = e.target.value;
+                      const customer = customers.find(c => c.customer_id == customerId);
+                      const isVip = customer?.customer_type === 'VIP';
+                      setCreateForm({
+                        ...createForm,
+                        customerId,
+                        priority: isVip ? 'HIGH' : createForm.priority
+                      });
+                    }}
                     className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
                   >
                     <option value="">Select customer</option>
                     {customers.map(c => (
-                      <option key={c.customer_id} value={c.customer_id}>{c.customer_name}</option>
+                      <option key={c.customer_id} value={c.customer_id}>
+                        {c.customer_type === 'VIP' ? '⭐ ' : ''}{c.customer_name}
+                      </option>
                     ))}
                   </select>
+                  {createForm.customerId && customers.find(c => c.customer_id == createForm.customerId)?.customer_type === 'VIP' && (
+                    <p className="mt-1 text-xs text-amber-600 font-medium">⭐ VIP customer — priority auto-set to High</p>
+                  )}
                 </div>
 
                 <div>
@@ -490,10 +504,13 @@ export default function PurchaseOrders() {
                   <select
                     value={createForm.priority}
                     onChange={(e) => setCreateForm({ ...createForm, priority: e.target.value })}
-                    className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                    className={`mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 ${
+                      createForm.priority === 'HIGH' ? 'border-amber-400 bg-amber-50' :
+                      createForm.priority === 'URGENT' ? 'border-red-400 bg-red-50' : ''
+                    }`}
                   >
                     <option value="NORMAL">Normal</option>
-                    <option value="HIGH">⭐ VIP / High Priority</option>
+                    <option value="HIGH">⭐ High Priority (VIP)</option>
                     <option value="URGENT">🔴 Urgent</option>
                   </select>
                 </div>

@@ -132,7 +132,7 @@ export default function Layout({ children }) {
         </div>
 
         {/* Page content */}
-        <main className="p-4 lg:p-8">
+        <main className="px-4 pb-4 pt-3 lg:px-8 lg:pb-8 lg:pt-4">
           {children}
         </main>
       </div>

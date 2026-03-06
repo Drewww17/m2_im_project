@@ -82,10 +82,21 @@ export default function InventoryPage() {
     <ProtectedRoute requiredRole="CLERK">
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1">
             <h1 className="text-2xl font-bold text-gray-900">Inventory Management</h1>
             <p className="text-gray-500">Monitor stock levels and alerts</p>
+          </div>
+          {/* Search Bar */}
+          <div className="relative flex-1 max-w-sm">
+            <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search products..."
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-black placeholder:text-gray-400 bg-white"
+            />
           </div>
           <div className="flex gap-2">
             <button
@@ -157,18 +168,6 @@ export default function InventoryPage() {
               {tab.label}
             </button>
           ))}
-        </div>
-
-        {/* Search */}
-        <div className="relative max-w-xl">
-          <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by product name, code, category, or batch..."
-            className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-black placeholder:text-gray-400"
-          />
         </div>
 
         {/* Inventory Table */}
