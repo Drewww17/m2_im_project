@@ -5,22 +5,32 @@ import { useState, useEffect } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { formatCurrency } from '@/lib/utils';
 import toast from 'react-hot-toast';
-import { PencilIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 
 export default function InventoryPage() {
   const [inventory, setInventory] = useState([]);
   const [alerts, setAlerts] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, lowStock, expiringSoon, expired
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingInventory, setEditingInventory] = useState(null);
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
     loadInventory();
     loadAlerts();
-  }, [filter]);
+  }, [filter, debouncedSearch]);
 
   const loadInventory = async () => {
     setLoading(true);
@@ -29,6 +39,7 @@ export default function InventoryPage() {
       if (filter === 'lowStock') params.set('lowStock', 'true');
       if (filter === 'expiringSoon') params.set('expiringSoon', 'true');
       if (filter === 'expired') params.set('expired', 'true');
+      if (debouncedSearch) params.set('search', debouncedSearch);
       
       const res = await fetch(`/api/inventory?${params}&pageSize=100`);
       const data = await res.json();
@@ -148,6 +159,18 @@ export default function InventoryPage() {
           ))}
         </div>
 
+        {/* Search */}
+        <div className="relative max-w-xl">
+          <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by product name, code, category, or batch..."
+            className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 text-black placeholder:text-gray-400"
+          />
+        </div>
+
         {/* Inventory Table */}
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           {loading ? (
@@ -168,7 +191,13 @@ export default function InventoryPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {inventory.map((item) => (
+                {inventory.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="px-6 py-8 text-center text-sm text-gray-500">
+                      No inventory items found.
+                    </td>
+                  </tr>
+                ) : inventory.map((item) => (
                   <tr key={item.inventory_id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div className="font-medium text-gray-900">{item.product.product_name}</div>
