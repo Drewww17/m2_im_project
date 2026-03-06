@@ -4,14 +4,14 @@
  */
 import prisma from '@/lib/prisma';
 import { withCashier, withClerk, apiHandler } from '@/middleware/withAuth';
-import { paginate, paginationMeta, parseDecimal, daysUntilExpiration, isExpiringSoon, isExpired } from '@/lib/utils';
+import { paginate, paginationMeta, parseDecimal, daysUntilExpiration, isExpiringSoon, isExpired, sanitizeSearch } from '@/lib/utils';
 
 /**
  * GET /api/inventory
  * List inventory with stock levels and alerts
  */
 async function getInventory(req, res) {
-  const { page, pageSize, productId, lowStock, expiringSoon, expired } = req.query;
+  const { page, pageSize, productId, lowStock, expiringSoon, expired, search } = req.query;
   const { skip, take, page: currentPage, pageSize: size } = paginate(page, pageSize);
   
   try {
@@ -61,7 +61,25 @@ async function getInventory(req, res) {
       };
     });
     
-    // Apply filters
+    // Apply text search filter
+    if (search) {
+      const searchTerm = sanitizeSearch(search).toLowerCase();
+      formattedInventory = formattedInventory.filter((inv) => {
+        const productName = inv.product?.product_name?.toLowerCase() || '';
+        const productCode = inv.product?.product_code?.toLowerCase() || '';
+        const category = inv.product?.category?.toLowerCase() || '';
+        const batchNumber = inv.batch_number?.toLowerCase() || '';
+
+        return (
+          productName.includes(searchTerm) ||
+          productCode.includes(searchTerm) ||
+          category.includes(searchTerm) ||
+          batchNumber.includes(searchTerm)
+        );
+      });
+    }
+
+    // Apply status filters
     if (lowStock === 'true') {
       formattedInventory = formattedInventory.filter(inv => inv.is_low_stock);
     }
