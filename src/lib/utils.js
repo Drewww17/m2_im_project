@@ -33,10 +33,11 @@ export function generatePONumber() {
  * @returns {string} Formatted currency string
  */
 export function formatCurrency(amount, currency = 'PHP') {
+  const safeAmount = Number.isFinite(Number(amount)) ? Number(amount) : 0;
   return new Intl.NumberFormat('en-PH', {
     style: 'currency',
     currency: currency
-  }).format(amount);
+  }).format(safeAmount);
 }
 
 /**

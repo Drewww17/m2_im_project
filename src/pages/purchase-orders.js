@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import toast from 'react-hot-toast';
 import { 
@@ -282,7 +281,6 @@ export default function PurchaseOrders() {
 
   return (
     <ProtectedRoute requiredRole="CLERK">
-      <Layout>
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
@@ -657,7 +655,6 @@ export default function PurchaseOrders() {
             </div>
           </div>
         )}
-      </Layout>
     </ProtectedRoute>
   );
 }

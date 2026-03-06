@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import toast from 'react-hot-toast';
 import { PlusIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
@@ -150,7 +149,6 @@ export default function Suppliers() {
 
   return (
     <ProtectedRoute requiredRole="CLERK">
-      <Layout>
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <div>
@@ -347,7 +345,6 @@ export default function Suppliers() {
             </div>
           </div>
         )}
-      </Layout>
     </ProtectedRoute>
   );
 }

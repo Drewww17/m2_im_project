@@ -4,15 +4,8 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { formatCurrency } from '@/lib/utils';
 import toast, { Toaster } from 'react-hot-toast';
-
-function formatCurrency(amount) {
-  const safeAmount = Number.isFinite(Number(amount)) ? Number(amount) : 0;
-  return new Intl.NumberFormat('en-PH', {
-    style: 'currency',
-    currency: 'PHP'
-  }).format(safeAmount);
-}
 
 function toNumber(value, fallback = 0) {
   const parsed = Number(value);

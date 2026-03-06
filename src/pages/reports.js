@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import toast from 'react-hot-toast';
 import { DocumentArrowDownIcon, CalendarIcon } from '@heroicons/react/24/outline';
@@ -127,7 +126,6 @@ export default function Reports() {
 
   return (
     <ProtectedRoute requiredRole="MANAGER">
-      <Layout>
         <div className="space-y-6">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
@@ -391,7 +389,6 @@ export default function Reports() {
             </>
           )}
         </div>
-      </Layout>
     </ProtectedRoute>
   );
 }

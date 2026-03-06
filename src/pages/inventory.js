@@ -2,15 +2,10 @@
  * Inventory Management Page
  */
 import { useState, useEffect } from 'react';
-import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { formatCurrency } from '@/lib/utils';
 import toast from 'react-hot-toast';
-
 import { PencilIcon } from '@heroicons/react/24/outline';
-
-function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount || 0);
-}
 
 export default function InventoryPage() {
   const [inventory, setInventory] = useState([]);
@@ -74,7 +69,6 @@ export default function InventoryPage() {
 
   return (
     <ProtectedRoute requiredRole="CLERK">
-      <Layout>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -280,7 +274,6 @@ export default function InventoryPage() {
           />
         )}
       </div>
-      </Layout>
     </ProtectedRoute>
   );
 }

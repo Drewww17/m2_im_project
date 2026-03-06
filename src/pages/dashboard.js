@@ -3,19 +3,12 @@
  * Financial reports and business overview
  */
 import { useState, useEffect } from 'react';
-import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { formatCurrency } from '@/lib/utils';
 import { 
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
   Tooltip, ResponsiveContainer, PieChart, Pie, Cell 
 } from 'recharts';
-
-function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-PH', {
-    style: 'currency',
-    currency: 'PHP'
-  }).format(amount || 0);
-}
 
 export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState(null);
@@ -50,11 +43,9 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <ProtectedRoute requiredRole="MANAGER">
-        <Layout>
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
           </div>
-        </Layout>
       </ProtectedRoute>
     );
   }
@@ -63,7 +54,6 @@ export default function DashboardPage() {
 
   return (
     <ProtectedRoute requiredRole="MANAGER">
-      <Layout>
         <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -425,7 +415,6 @@ export default function DashboardPage() {
           </div>
         )}
         </div>
-      </Layout>
     </ProtectedRoute>
   );
 }
