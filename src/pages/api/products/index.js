@@ -15,8 +15,8 @@ async function getProducts(req, res) {
   const { skip, take, page: currentPage, pageSize: size } = paginate(page, pageSize);
   
   try {
-    // Build where clause
-    const where = { is_active: true };
+    // Build where clause (is_active is nullable, so use not-false to include null)
+    const where = { is_active: { not: false } };
     
     if (search) {
       const searchTerm = sanitizeSearch(search);

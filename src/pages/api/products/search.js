@@ -14,7 +14,7 @@ async function searchProducts(req, res) {
   const { q, barcode, limit = 10 } = req.query;
   
   try {
-    let where = { is_active: true };
+    let where = { is_active: { not: false } };
     
     // Barcode exact match takes priority
     if (barcode) {

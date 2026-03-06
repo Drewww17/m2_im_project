@@ -72,7 +72,7 @@ async function getDashboard(req, res) {
     // Get customer credit outstanding
     const customersWithCredit = await prisma.customers.findMany({
       where: {
-        is_active: true,
+        is_active: { not: false },
         credit_balance: { gt: 0 }
       },
       select: {
@@ -97,7 +97,7 @@ async function getDashboard(req, res) {
     // Get supplier payables
     const suppliersWithPayable = await prisma.suppliers.findMany({
       where: {
-        is_active: true,
+        is_active: { not: false },
         payable_balance: { gt: 0 }
       },
       select: {

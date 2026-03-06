@@ -10,7 +10,7 @@ async function getRestockAlerts(req, res) {
   try {
     // Get all products with inventory
     const products = await prisma.products.findMany({
-      where: { is_active: true },
+      where: { is_active: { not: false } },
       include: {
         suppliers: {
           select: { supplier_id: true, supplier_name: true, contact_number: true }

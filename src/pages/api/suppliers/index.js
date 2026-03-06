@@ -15,7 +15,7 @@ async function getSuppliers(req, res) {
   const { skip, take, page: currentPage, pageSize: size } = paginate(page, pageSize);
   
   try {
-    const where = { is_active: true };
+    const where = { is_active: { not: false } };
     
     if (search) {
       const searchTerm = sanitizeSearch(search);

@@ -9,7 +9,7 @@ async function getCategories(req, res) {
   try {
     const categories = await prisma.products.findMany({
       where: { 
-        is_active: true,
+        is_active: { not: false },
         category: { not: null }
       },
       select: { category: true },
