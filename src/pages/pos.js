@@ -51,13 +51,15 @@ function printReceiptPDF(sale) {
     const productName = item.products?.product_name || item.product?.product_name || 'Item';
     const quantity = Number(item.quantity || 0);
     const unitPrice = Number(item.unit_price || 0);
-    const lineTotal = Number(item.subtotal ?? quantity * unitPrice);
+    const itemDiscount = Number(item.discount || 0);
+    const lineTotal = Number(item.subtotal ?? (quantity * unitPrice - itemDiscount));
 
     return `
       <tr>
         <td style="padding:6px 0;">${productName}</td>
         <td style="padding:6px 0;text-align:right;">${quantity}</td>
         <td style="padding:6px 0;text-align:right;">${formatCurrency(unitPrice)}</td>
+        <td style="padding:6px 0;text-align:right;">${itemDiscount > 0 ? '-' + formatCurrency(itemDiscount) : '-'}</td>
         <td style="padding:6px 0;text-align:right;">${formatCurrency(lineTotal)}</td>
       </tr>
     `;
@@ -84,6 +86,7 @@ function printReceiptPDF(sale) {
               <th style="text-align:left;padding:8px 0;">Item</th>
               <th style="text-align:right;padding:8px 0;">Qty</th>
               <th style="text-align:right;padding:8px 0;">Price</th>
+              <th style="text-align:right;padding:8px 0;">Disc</th>
               <th style="text-align:right;padding:8px 0;">Total</th>
             </tr>
           </thead>
@@ -94,6 +97,10 @@ function printReceiptPDF(sale) {
           ${discount > 0 ? `<div style="display:flex;justify-content:space-between;"><span>Discount</span><span>-${formatCurrency(discount)}</span></div>` : ''}
           <div style="display:flex;justify-content:space-between;font-weight:700;margin-top:6px;"><span>Total</span><span>${formatCurrency(totalAmount)}</span></div>
           <div style="display:flex;justify-content:space-between;"><span>Amount Paid</span><span>${formatCurrency(amountPaid)}</span></div>
+          ${sale.payment_breakdown ? `
+            <div style="display:flex;justify-content:space-between;padding-left:16px;font-size:11px;color:#555;"><span>Cash</span><span>${formatCurrency(sale.payment_breakdown.cash)}</span></div>
+            <div style="display:flex;justify-content:space-between;padding-left:16px;font-size:11px;color:#555;"><span>Online</span><span>${formatCurrency(sale.payment_breakdown.online)}</span></div>
+          ` : ''}
           <div style="display:flex;justify-content:space-between;"><span>Change</span><span>${formatCurrency(changeAmount)}</span></div>
         </div>
         ${receiptRemarks ? `<div style="margin-top:12px;font-size:12px;"><strong>Remarks:</strong> ${receiptRemarks}</div>` : ''}
@@ -156,8 +163,9 @@ async function downloadReceiptPDF(sale) {
 
   doc.setFont('helvetica', 'bold');
   doc.text('Item', 40, y);
-  doc.text('Qty', 325, y, { align: 'right' });
-  doc.text('Price', 430, y, { align: 'right' });
+  doc.text('Qty', 250, y, { align: 'right' });
+  doc.text('Price', 340, y, { align: 'right' });
+  doc.text('Disc', 430, y, { align: 'right' });
   doc.text('Total', 555, y, { align: 'right' });
   y += 12;
   doc.line(40, y, 555, y);
@@ -168,11 +176,13 @@ async function downloadReceiptPDF(sale) {
     const productName = item.products?.product_name || item.product?.product_name || 'Item';
     const quantity = toNumber(item.quantity, 0);
     const unitPrice = toNumber(item.unit_price, 0);
-    const lineTotal = toNumber(item.subtotal, quantity * unitPrice);
+    const itemDiscount = toNumber(item.discount, 0);
+    const lineTotal = toNumber(item.subtotal, quantity * unitPrice - itemDiscount);
 
     doc.text(productName, 40, y);
-    doc.text(String(quantity), 325, y, { align: 'right' });
-    doc.text(formatCurrency(unitPrice), 430, y, { align: 'right' });
+    doc.text(String(quantity), 250, y, { align: 'right' });
+    doc.text(formatCurrency(unitPrice), 340, y, { align: 'right' });
+    doc.text(itemDiscount > 0 ? '-' + formatCurrency(itemDiscount) : '-', 430, y, { align: 'right' });
     doc.text(formatCurrency(lineTotal), 555, y, { align: 'right' });
     y += 18;
 
@@ -238,6 +248,8 @@ export default function POSPage() {
   const [deliveryDate, setDeliveryDate] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [amountTendered, setAmountTendered] = useState('');
+  const [cashAmount, setCashAmount] = useState('');
+  const [onlineAmount, setOnlineAmount] = useState('');
   const [remarks, setRemarks] = useState('');
   const [discount, setDiscount] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -249,7 +261,8 @@ export default function POSPage() {
 
   // Calculate totals
   const subtotal = cart.reduce((sum, item) => sum + (item.quantity * item.selling_price), 0);
-  const total = subtotal - discount;
+  const itemDiscountsTotal = cart.reduce((sum, item) => sum + (toNumber(item.itemDiscount, 0)), 0);
+  const total = subtotal - discount - itemDiscountsTotal;
   const change = parseFloat(amountTendered || 0) - total;
 
   // Load customers and today's summary on mount
@@ -357,7 +370,7 @@ export default function POSPage() {
         return newCart;
       }
       
-      return [...prevCart, { ...product, quantity: 1 }];
+      return [...prevCart, { ...product, quantity: 1, itemDiscount: 0 }];
     });
 
     setSearchQuery('');
@@ -385,6 +398,15 @@ export default function POSPage() {
     });
   };
 
+  // Update per-item discount
+  const updateItemDiscount = (productId, discountValue) => {
+    setCart(prevCart =>
+      prevCart.map(i =>
+        i.product_id === productId ? { ...i, itemDiscount: Math.max(0, discountValue) } : i
+      )
+    );
+  };
+
   // Remove item from cart
   const removeFromCart = (productId) => {
     setCart(prevCart => prevCart.filter(item => item.product_id !== productId));
@@ -399,6 +421,8 @@ export default function POSPage() {
     setDeliveryDate('');
     setPaymentMethod('CASH');
     setAmountTendered('');
+    setCashAmount('');
+    setOnlineAmount('');
     setRemarks('');
     setDiscount(0);
     searchInputRef.current?.focus();
@@ -414,6 +438,14 @@ export default function POSPage() {
     if (paymentMethod === 'CASH' && parseFloat(amountTendered || 0) < total) {
       toast.error('Insufficient payment amount');
       return;
+    }
+
+    if (paymentMethod === 'MIXED') {
+      const mixedTotal = parseFloat(cashAmount || 0) + parseFloat(onlineAmount || 0);
+      if (mixedTotal < total) {
+        toast.error('Combined cash + online payment is insufficient');
+        return;
+      }
     }
 
     if (orderType === 'DELIVERY' && !deliveryAddress.trim()) {
@@ -437,11 +469,16 @@ export default function POSPage() {
         items: cart.map(item => ({
           productId: item.product_id,
           quantity: item.quantity,
-          unitPrice: item.selling_price
+          unitPrice: item.selling_price,
+          discount: toNumber(item.itemDiscount, 0)
         })),
         discount,
-        amountPaid: paymentMethod === 'CREDIT' ? 0 : parseFloat(amountTendered || total),
+        amountPaid: paymentMethod === 'CREDIT' ? 0
+          : paymentMethod === 'MIXED' ? parseFloat(cashAmount || 0) + parseFloat(onlineAmount || 0)
+          : parseFloat(amountTendered || total),
         paymentMethod,
+        cashAmount: paymentMethod === 'MIXED' ? parseFloat(cashAmount || 0) : undefined,
+        onlineAmount: paymentMethod === 'MIXED' ? parseFloat(onlineAmount || 0) : undefined,
         notes: remarks.trim() || null
       };
 
@@ -455,9 +492,15 @@ export default function POSPage() {
 
       if (data.success) {
         toast.success('Sale completed!');
-        setLastSale(data.sale);
+        const saleWithPaymentBreakdown = {
+          ...data.sale,
+          payment_breakdown: paymentMethod === 'MIXED'
+            ? { cash: parseFloat(cashAmount || 0), online: parseFloat(onlineAmount || 0) }
+            : null
+        };
+        setLastSale(saleWithPaymentBreakdown);
         setShowReceipt(true);
-        printReceiptPDF(data.sale);
+        printReceiptPDF(saleWithPaymentBreakdown);
         clearCart();
         loadTodaySummary();
       } else {
@@ -540,6 +583,7 @@ export default function POSPage() {
                     <th className="pb-2">Product</th>
                     <th className="pb-2 text-center w-32">Qty</th>
                     <th className="pb-2 text-right w-24">Price</th>
+                    <th className="pb-2 text-right w-24">Discount</th>
                     <th className="pb-2 text-right w-28">Subtotal</th>
                     <th className="pb-2 w-10"></th>
                   </tr>
@@ -574,8 +618,18 @@ export default function POSPage() {
                         </div>
                       </td>
                       <td className="py-3 text-right">{formatCurrency(item.selling_price)}</td>
+                      <td className="py-3 text-right">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.itemDiscount || 0}
+                          onChange={(e) => updateItemDiscount(item.product_id, parseFloat(e.target.value) || 0)}
+                          className="w-20 px-2 py-1 text-right border rounded"
+                        />
+                      </td>
                       <td className="py-3 text-right font-medium">
-                        {formatCurrency(item.quantity * item.selling_price)}
+                        {formatCurrency((item.quantity * item.selling_price) - toNumber(item.itemDiscount, 0))}
                       </td>
                       <td className="py-3">
                         <button
@@ -632,8 +686,14 @@ export default function POSPage() {
               <span className="text-black">Subtotal</span>
               <span>{formatCurrency(subtotal)}</span>
             </div>
+            {itemDiscountsTotal > 0 && (
+              <div className="flex justify-between text-sm text-red-600">
+                <span>Item Discounts</span>
+                <span>-{formatCurrency(itemDiscountsTotal)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-sm">
-              <span className="text-black">Discount</span>
+              <span className="text-black">Extra Discount</span>
               <input
                 type="number"
                 value={discount}
@@ -703,8 +763,8 @@ export default function POSPage() {
             </div>
           </div>
 
-          {/* Amount Tendered */}
-          {paymentMethod !== 'CREDIT' && (
+          {/* Amount Tendered - CASH */}
+          {paymentMethod === 'CASH' && (
             <div className="p-4 border-b">
               <label className="block text-sm font-medium text-black mb-2">Amount Tendered</label>
               <input
@@ -734,6 +794,58 @@ export default function POSPage() {
                   <p className="text-2xl font-bold text-green-600">{formatCurrency(change)}</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Amount Breakdown - MIXED */}
+          {paymentMethod === 'MIXED' && (
+            <div className="p-4 border-b space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-black mb-1">Cash Amount</label>
+                <input
+                  type="number"
+                  value={cashAmount}
+                  onChange={(e) => setCashAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full px-4 py-3 text-lg text-right border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-black mb-1">Online Payment</label>
+                <input
+                  type="number"
+                  value={onlineAmount}
+                  onChange={(e) => setOnlineAmount(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full px-4 py-3 text-lg text-right border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              <div className="p-3 bg-gray-50 rounded-lg space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-black">Cash</span>
+                  <span>{formatCurrency(parseFloat(cashAmount || 0))}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-black">Online</span>
+                  <span>{formatCurrency(parseFloat(onlineAmount || 0))}</span>
+                </div>
+                <div className="flex justify-between font-bold border-t pt-1">
+                  <span>Total Paid</span>
+                  <span>{formatCurrency(parseFloat(cashAmount || 0) + parseFloat(onlineAmount || 0))}</span>
+                </div>
+                {(parseFloat(cashAmount || 0) + parseFloat(onlineAmount || 0)) >= total && (
+                  <div className="flex justify-between text-green-600 font-bold">
+                    <span>Change</span>
+                    <span>{formatCurrency(parseFloat(cashAmount || 0) + parseFloat(onlineAmount || 0) - total)}</span>
+                  </div>
+                )}
+                {(parseFloat(cashAmount || 0) + parseFloat(onlineAmount || 0)) < total && (
+                  <div className="flex justify-between text-red-600 font-medium">
+                    <span>Remaining</span>
+                    <span>{formatCurrency(total - parseFloat(cashAmount || 0) - parseFloat(onlineAmount || 0))}</span>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -816,9 +928,14 @@ export default function POSPage() {
                   <div key={idx} className="flex justify-between text-sm">
                     <div>
                       <p>{item.products?.product_name || item.product?.product_name || 'Item'}</p>
-                      <p className="text-black">{item.quantity} x {formatCurrency(item.unit_price || 0)}</p>
+                      <p className="text-black">
+                        {item.quantity} x {formatCurrency(item.unit_price || 0)}
+                        {Number(item.discount || 0) > 0 && (
+                          <span className="text-red-600 ml-1">(-{formatCurrency(item.discount)})</span>
+                        )}
+                      </p>
                     </div>
-                    <p className="font-medium">{formatCurrency(item.subtotal ?? ((item.quantity || 0) * (item.unit_price || 0)))}</p>
+                    <p className="font-medium">{formatCurrency((item.subtotal ?? ((item.quantity || 0) * (item.unit_price || 0) - Number(item.discount || 0))))}</p>
                   </div>
                 ))}
               </div>
@@ -843,6 +960,18 @@ export default function POSPage() {
                   <span>Amount Paid</span>
                   <span>{formatCurrency(lastSale.amount_paid)}</span>
                 </div>
+                {lastSale.payment_breakdown && (
+                  <div className="ml-4 space-y-1 text-xs text-gray-600">
+                    <div className="flex justify-between">
+                      <span>Cash</span>
+                      <span>{formatCurrency(lastSale.payment_breakdown.cash)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Online</span>
+                      <span>{formatCurrency(lastSale.payment_breakdown.online)}</span>
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span>Change</span>
                   <span>{formatCurrency(lastSale.change_amount)}</span>

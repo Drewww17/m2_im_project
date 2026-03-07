@@ -152,6 +152,7 @@ model sale_details {
   product_id     Int?
   quantity       Int?
   unit_price     Decimal?  @db.Decimal(15, 2)
+  discount       Decimal?  @default(0.00) @db.Decimal(15, 2)
   products       products? @relation(fields: [product_id], references: [product_id], onDelete: Restrict, onUpdate: Restrict)
   sales          sales?    @relation(fields: [sale_id], references: [sale_id], onDelete: Restrict, onUpdate: Restrict)
 

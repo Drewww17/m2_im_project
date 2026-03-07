@@ -61,7 +61,8 @@ async function getSales(req, res) {
       amount_paid: parseDecimal(sale.amount_paid),
       sale_details: sale.sale_details.map(detail => ({
         ...detail,
-        unit_price: parseDecimal(detail.unit_price)
+        unit_price: parseDecimal(detail.unit_price),
+        discount: parseDecimal(detail.discount)
       }))
     }));
     
@@ -136,14 +137,16 @@ async function createSale(req, res) {
         }
         
         const unitPrice = item.unitPrice || parseDecimal(product.unit_price);
-        const itemSubtotal = (item.quantity * unitPrice);
+        const itemDiscount = item.discount || 0;
+        const itemSubtotal = (item.quantity * unitPrice) - itemDiscount;
         
         subtotal += itemSubtotal;
         
         saleDetails.push({
           product_id: item.productId,
           quantity: item.quantity,
-          unit_price: unitPrice
+          unit_price: unitPrice,
+          discount: itemDiscount
         });
         
         // Deduct from inventory (FIFO - first expiring first)
@@ -298,7 +301,8 @@ async function createSale(req, res) {
       amount_paid: parseDecimal(result.amount_paid),
       sale_details: result.sale_details.map(detail => ({
         ...detail,
-        unit_price: parseDecimal(detail.unit_price)
+        unit_price: parseDecimal(detail.unit_price),
+        discount: parseDecimal(detail.discount)
       }))
     };
     
