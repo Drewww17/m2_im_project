@@ -2,7 +2,7 @@
  * Authentication Context
  * Provides auth state and methods throughout the app
  */
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 
 const AuthContext = createContext(null);
@@ -12,20 +12,16 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  const refreshSession = async () => {
+  const refreshSession = useCallback(async () => {
     const refreshRes = await fetch('/api/auth/refresh', {
       method: 'POST',
       credentials: 'same-origin'
     });
 
     return refreshRes.ok;
-  };
+  }, []);
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
       const res = await fetch('/api/auth/me', { credentials: 'same-origin' });
       if (res.ok) {
@@ -53,9 +49,13 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [refreshSession]);
 
-  const login = async (username, password) => {
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  const login = useCallback(async (username, password) => {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -80,19 +80,19 @@ export function AuthProvider({ children }) {
     }
 
     return { success: false, error: data.error, code: data.code, hint: data.hint };
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
     setUser(null);
     router.push('/login');
-  };
+  }, [router]);
 
-  const hasRole = (requiredRole) => {
+  const hasRole = useCallback((requiredRole) => {
     if (!user) return false;
     const hierarchy = { CASHIER: 1, CLERK: 2, MANAGER: 3 };
     return hierarchy[user.role] >= hierarchy[requiredRole];
-  };
+  }, [user]);
 
   return (
     <AuthContext.Provider value={{ user, loading, login, logout, hasRole, checkAuth }}>

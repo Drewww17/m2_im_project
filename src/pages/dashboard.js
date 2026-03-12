@@ -2,7 +2,7 @@
  * Manager Dashboard Page
  * Financial reports and business overview
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { formatCurrency } from '@/lib/utils';
 import { 
@@ -18,25 +18,33 @@ export default function DashboardPage() {
     endDate: new Date().toISOString().split('T')[0]
   });
 
-  useEffect(() => {
-    loadDashboard();
-  }, [dateRange]);
-
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async (signal) => {
     setLoading(true);
     try {
       const params = new URLSearchParams(dateRange);
-      const res = await fetch(`/api/dashboard?${params}`);
+      const res = await fetch(`/api/dashboard?${params}`, { signal });
       const data = await res.json();
       if (data.success) {
         setDashboardData(data.dashboard);
       }
     } catch (error) {
+      if (error.name === 'AbortError') {
+        return;
+      }
+
       console.error('Failed to load dashboard:', error);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
     }
-  };
+  }, [dateRange]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    loadDashboard(controller.signal);
+    return () => controller.abort();
+  }, [loadDashboard]);
 
   const COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444'];
 

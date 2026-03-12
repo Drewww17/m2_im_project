@@ -1,5 +1,6 @@
 generator client {
   provider      = "prisma-client-js"
+  output        = "../src/generated/prisma"
   binaryTargets = ["native", "rhel-openssl-1.0.x", "rhel-openssl-3.0.x"]
 }
 
@@ -172,6 +173,8 @@ model sales {
   created_at     DateTime         @default(now()) @db.Timestamptz
   updated_at     DateTime         @default(now()) @db.Timestamptz
   amount_paid    Decimal?         @default(0.00) @db.Decimal(15, 2)
+  cash_amount    Decimal?         @default(0.00) @db.Decimal(15, 2)
+  online_amount  Decimal?         @default(0.00) @db.Decimal(15, 2)
   is_active      Boolean          @default(true)
   payment_method String?          @db.VarChar(50)
   total_amount   Decimal?         @default(0.00) @db.Decimal(15, 2)
@@ -273,6 +276,40 @@ model users {
   updated_at    DateTime
 }
 
+model business_days {
+  business_day_id             Int                 @id @default(autoincrement())
+  business_date               String              @unique @db.VarChar(10)
+  status                      business_day_status @default(OPEN)
+  opening_cash                Decimal             @default(0.00) @db.Decimal(15, 2)
+  opening_note                String?             @db.VarChar(255)
+  opened_at                   DateTime            @default(now()) @db.Timestamptz
+  opened_by_user_id           Int?
+  opened_by_username          String?             @db.VarChar(50)
+  opened_by_name              String?             @db.VarChar(100)
+  closing_note                String?             @db.VarChar(255)
+  actual_cash_on_hand         Decimal?            @db.Decimal(15, 2)
+  expected_cash_on_hand       Decimal?            @db.Decimal(15, 2)
+  cash_variance               Decimal?            @db.Decimal(15, 2)
+  sales_total                 Decimal?            @db.Decimal(15, 2)
+  cash_sales_total            Decimal?            @db.Decimal(15, 2)
+  online_sales_total          Decimal?            @db.Decimal(15, 2)
+  credit_sales_total          Decimal?            @db.Decimal(15, 2)
+  customer_payments_total     Decimal?            @db.Decimal(15, 2)
+  supplier_payments_total     Decimal?            @db.Decimal(15, 2)
+  purchase_orders_total       Decimal?            @db.Decimal(15, 2)
+  supplies_total              Decimal?            @db.Decimal(15, 2)
+  total_cash_inflows          Decimal?            @db.Decimal(15, 2)
+  total_cash_outflows         Decimal?            @db.Decimal(15, 2)
+  total_transactions          Int                 @default(0)
+  snapshot                    Json?
+  closed_at                   DateTime?           @db.Timestamptz
+  closed_by_user_id           Int?
+  closed_by_username          String?             @db.VarChar(50)
+  closed_by_name              String?             @db.VarChar(100)
+  created_at                  DateTime            @default(now()) @db.Timestamptz
+  updated_at                  DateTime            @updatedAt @db.Timestamptz
+}
+
 enum account_ledger_account_type {
   customer
   supplier
@@ -299,4 +336,9 @@ enum purchase_order_priority {
   NORMAL
   HIGH
   URGENT
+}
+
+enum business_day_status {
+  OPEN
+  CLOSED
 }

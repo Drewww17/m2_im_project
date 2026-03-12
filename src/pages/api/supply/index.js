@@ -5,6 +5,7 @@
 import prisma from '@/lib/prisma';
 import { withClerk, apiHandler } from '@/middleware/withAuth';
 import { paginate, paginationMeta, sanitizeSearch, parseDecimal } from '@/lib/utils';
+import { assertBusinessDayOpen } from '@/lib/businessDay';
 
 /**
  * GET /api/supply
@@ -106,6 +107,8 @@ async function createSupply(req, res) {
     );
     
     const supply = await prisma.$transaction(async (tx) => {
+      await assertBusinessDayOpen(tx);
+
       // Create supply record
       const newSupply = await tx.supply.create({
         data: {
@@ -171,6 +174,17 @@ async function createSupply(req, res) {
         where: { supplier_id: parseInt(supplierId) },
         data: {
           payable_balance: { increment: total }
+        }
+      });
+
+      await tx.agrivet_transactions.create({
+        data: {
+          ref_id: `SUPPLY-${newSupply.supply_id}`,
+          transaction_date: new Date(),
+          transaction_type: 'SUPPLY',
+          account_name: `Supplier #${supplierId}`,
+          amount: total,
+          remarks: `Supply record #${newSupply.supply_id}`
         }
       });
       

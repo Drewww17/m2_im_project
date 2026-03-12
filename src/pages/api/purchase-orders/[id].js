@@ -4,6 +4,7 @@
 import prisma from '@/lib/prisma';
 import { withClerk, withManager, apiHandler } from '@/middleware/withAuth';
 import { parseDecimal } from '@/lib/utils';
+import { assertBusinessDayOpen } from '@/lib/businessDay';
 
 /**
  * GET /api/purchase-orders/[id]
@@ -68,6 +69,8 @@ async function cancelPurchaseOrder(req, res) {
   
   try {
     const result = await prisma.$transaction(async (tx) => {
+      await assertBusinessDayOpen(tx);
+
       const order = await tx.purchase_orders.findUnique({
         where: { po_id: parseInt(id) }
       });
@@ -101,6 +104,17 @@ async function cancelPurchaseOrder(req, res) {
         data: {
           po_status: 'CANCELLED',
           remarks: `${order.remarks || ''}\n[CANCELLED: ${reason || 'No reason'}]`.trim()
+        }
+      });
+
+      await tx.agrivet_transactions.create({
+        data: {
+          ref_id: `PO-CANCEL-${order.po_id}`,
+          transaction_date: new Date(),
+          transaction_type: 'CANCELLED_PO',
+          account_name: order.customer_id ? `Customer #${order.customer_id}` : 'Customer',
+          amount: amountToReverse,
+          remarks: reason || `Cancelled purchase order #${order.po_id}`
         }
       });
       

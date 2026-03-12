@@ -1,8 +1,9 @@
 /**
  * Inventory Management Page
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import useDebouncedValue from '@/hooks/useDebouncedValue';
 import { formatCurrency } from '@/lib/utils';
 import toast from 'react-hot-toast';
 import { PencilIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
@@ -13,33 +14,21 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, lowStock, expiringSoon, expired
   const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingInventory, setEditingInventory] = useState(null);
+  const debouncedSearch = useDebouncedValue(search.trim(), 300);
+  const activeSearch = search.trim() ? debouncedSearch : '';
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search.trim());
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [search]);
-
-  useEffect(() => {
-    loadInventory();
-    loadAlerts();
-  }, [filter, debouncedSearch]);
-
-  const loadInventory = async () => {
+  const loadInventory = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (filter === 'lowStock') params.set('lowStock', 'true');
       if (filter === 'expiringSoon') params.set('expiringSoon', 'true');
       if (filter === 'expired') params.set('expired', 'true');
-      if (debouncedSearch) params.set('search', debouncedSearch);
+      if (activeSearch) params.set('search', activeSearch);
       
       const res = await fetch(`/api/inventory?${params}&pageSize=100`);
       const data = await res.json();
@@ -51,9 +40,9 @@ export default function InventoryPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeSearch, filter]);
 
-  const loadAlerts = async () => {
+  const loadAlerts = useCallback(async () => {
     try {
       const res = await fetch('/api/inventory/alerts');
       const data = await res.json();
@@ -63,7 +52,20 @@ export default function InventoryPage() {
     } catch (error) {
       console.error('Failed to load alerts:', error);
     }
-  };
+  }, []);
+
+  const refreshInventoryData = useCallback(() => {
+    loadInventory();
+    loadAlerts();
+  }, [loadAlerts, loadInventory]);
+
+  useEffect(() => {
+    loadInventory();
+  }, [loadInventory]);
+
+  useEffect(() => {
+    loadAlerts();
+  }, [loadAlerts]);
 
   const getStatusBadge = (item) => {
     if (item.is_expired) {
@@ -267,7 +269,7 @@ export default function InventoryPage() {
             onClose={() => setShowConvertModal(false)} 
             onSuccess={() => {
               setShowConvertModal(false);
-              loadInventory();
+              refreshInventoryData();
               toast.success('Bulk conversion completed');
             }}
           />
@@ -279,7 +281,7 @@ export default function InventoryPage() {
             onClose={() => setShowAdjustModal(false)} 
             onSuccess={() => {
               setShowAdjustModal(false);
-              loadInventory();
+              refreshInventoryData();
               toast.success('Stock adjusted successfully');
             }}
           />
@@ -296,7 +298,7 @@ export default function InventoryPage() {
             onSuccess={() => {
               setShowEditModal(false);
               setEditingInventory(null);
-              loadInventory();
+              refreshInventoryData();
               toast.success('Inventory updated successfully');
             }}
           />

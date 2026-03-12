@@ -19,16 +19,16 @@ async function searchProducts(req, res) {
     // Barcode exact match takes priority
     if (barcode) {
       where.OR = [
-        { barcode },
-        { product_code: barcode }
+        { barcode: { equals: barcode.trim(), mode: 'insensitive' } },
+        { product_code: { equals: barcode.trim(), mode: 'insensitive' } }
       ];
     } else if (q) {
       // Text search
       const searchTerm = q.trim();
       where.OR = [
-        { product_name: { contains: searchTerm } },
-        { product_code: { contains: searchTerm } },
-        { barcode: { contains: searchTerm } }
+        { product_name: { contains: searchTerm, mode: 'insensitive' } },
+        { product_code: { contains: searchTerm, mode: 'insensitive' } },
+        { barcode: { contains: searchTerm, mode: 'insensitive' } }
       ];
     } else {
       return res.status(400).json({

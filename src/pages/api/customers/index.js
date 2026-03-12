@@ -21,8 +21,8 @@ async function getCustomers(req, res) {
     if (search) {
       const searchTerm = sanitizeSearch(search);
       where.OR = [
-        { customer_name: { contains: searchTerm } },
-        { contact_number: { contains: searchTerm } }
+        { customer_name: { contains: searchTerm, mode: 'insensitive' } },
+        { contact_number: { contains: searchTerm, mode: 'insensitive' } }
       ];
     }
     
@@ -119,5 +119,5 @@ async function createCustomer(req, res) {
 
 export default apiHandler({
   GET: withCashier(getCustomers),
-  POST: withCashier(createCustomer)
+  POST: withClerk(createCustomer)
 });

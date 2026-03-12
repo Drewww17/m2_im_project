@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import useDebouncedValue from '@/hooks/useDebouncedValue';
 import { formatCurrency } from '@/lib/utils';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -258,6 +259,8 @@ export default function POSPage() {
   const [todaySummary, setTodaySummary] = useState(null);
   
   const searchInputRef = useRef(null);
+  const debouncedSearchQuery = useDebouncedValue(searchQuery.trim(), 300);
+  const activeSearchQuery = searchQuery.trim() ? debouncedSearchQuery : '';
 
   // Calculate totals
   const subtotal = cart.reduce((sum, item) => sum + (item.quantity * item.selling_price), 0);
@@ -315,11 +318,8 @@ export default function POSPage() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      searchProducts(searchQuery);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery, searchProducts]);
+    searchProducts(activeSearchQuery);
+  }, [activeSearchQuery, searchProducts]);
 
   // Handle barcode scan (Enter key in search)
   const handleSearchKeyDown = async (e) => {

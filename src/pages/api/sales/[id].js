@@ -3,8 +3,9 @@
  * Get sale details, void sale
  */
 import prisma from '@/lib/prisma';
-import { withCashier, withManager, apiHandler } from '@/middleware/withAuth';
+import { withClerk, withManager, apiHandler } from '@/middleware/withAuth';
 import { parseDecimal } from '@/lib/utils';
+import { assertBusinessDayOpen } from '@/lib/businessDay';
 
 /**
  * GET /api/sales/[id]
@@ -49,6 +50,8 @@ async function getSale(req, res) {
       ...sale,
       total_amount: parseDecimal(sale.total_amount),
       amount_paid: parseDecimal(sale.amount_paid),
+      cash_amount: parseDecimal(sale.cash_amount),
+      online_amount: parseDecimal(sale.online_amount),
       sale_details: sale.sale_details.map(detail => ({
         ...detail,
         unit_price: parseDecimal(detail.unit_price)
@@ -84,6 +87,8 @@ async function voidSale(req, res) {
   
   try {
     const result = await prisma.$transaction(async (tx) => {
+      await assertBusinessDayOpen(tx);
+
       // Get sale with details
       const sale = await tx.sales.findUnique({
         where: { sale_id: parseInt(id) },
@@ -184,6 +189,6 @@ async function voidSale(req, res) {
 }
 
 export default apiHandler({
-  GET: withCashier(getSale),
+  GET: withClerk(getSale),
   DELETE: withManager(voidSale)
 });

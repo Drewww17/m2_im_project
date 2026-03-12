@@ -3,8 +3,9 @@
  * Record payments against customer credit balance
  */
 import prisma from '@/lib/prisma';
-import { withCashier, apiHandler } from '@/middleware/withAuth';
+import { withClerk, apiHandler } from '@/middleware/withAuth';
 import { parseDecimal } from '@/lib/utils';
+import { assertBusinessDayOpen } from '@/lib/businessDay';
 
 /**
  * POST /api/customers/[id]/payment
@@ -25,6 +26,8 @@ async function recordPayment(req, res) {
   try {
     // Use transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
+      await assertBusinessDayOpen(tx);
+
       // Get current customer
       const customer = await tx.customers.findUnique({
         where: { customer_id: customerId }
@@ -61,8 +64,9 @@ async function recordPayment(req, res) {
         data: {
           ref_id: `PAY-${Date.now()}`,
           transaction_date: new Date(),
-          transaction_type: 'PAYMENT',
+          transaction_type: 'CUSTOMER_PAYMENT',
           account_name: customer.customer_name || 'Customer',
+          fund_source: paymentMethod || 'CASH',
           amount: paymentAmount,
           remarks: description || 'Customer payment'
         }
@@ -92,5 +96,5 @@ async function recordPayment(req, res) {
 }
 
 export default apiHandler({
-  POST: withCashier(recordPayment)
+  POST: withClerk(recordPayment)
 });

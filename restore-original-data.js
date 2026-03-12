@@ -3,7 +3,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient } = require('./src/generated/prisma');
 
 // Load .env
 const envPath = path.join(__dirname, '.env');

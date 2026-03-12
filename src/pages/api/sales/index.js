@@ -4,15 +4,16 @@
  * NOTE: Stock validation/reduction is handled in this API transaction (batch-aware FIFO)
  */
 import prisma from '@/lib/prisma';
-import { withCashier, withManager, apiHandler } from '@/middleware/withAuth';
-import { paginate, paginationMeta, generateInvoiceNumber, parseDecimal } from '@/lib/utils';
+import { withCashier, withClerk, apiHandler } from '@/middleware/withAuth';
+import { paginate, paginationMeta, parseDecimal, sanitizeSearch } from '@/lib/utils';
+import { assertBusinessDayOpen } from '@/lib/businessDay';
 
 /**
  * GET /api/sales
  * List sales with filters
  */
 async function getSales(req, res) {
-  const { page, pageSize, startDate, endDate, customerId, cashierId, paymentStatus } = req.query;
+  const { page, pageSize, startDate, endDate, customerId, cashierId, paymentStatus, paymentMethod, search } = req.query;
   const { skip, take, page: currentPage, pageSize: size } = paginate(page, pageSize);
   
   try {
@@ -27,7 +28,49 @@ async function getSales(req, res) {
     
     if (customerId) where.customer_id = parseInt(customerId);
     if (cashierId) where.employee_id = parseInt(cashierId);
-    if (paymentStatus) where.sale_status = paymentStatus;
+
+    const filters = [];
+    const resolvedPaymentFilter = paymentMethod || paymentStatus;
+    if (resolvedPaymentFilter) {
+      const normalizedPaymentFilter = String(resolvedPaymentFilter).toUpperCase();
+      if (['CASH', 'CREDIT', 'MIXED'].includes(normalizedPaymentFilter)) {
+        filters.push({ payment_method: normalizedPaymentFilter });
+      } else {
+        filters.push({ sale_status: resolvedPaymentFilter });
+      }
+    }
+
+    if (search) {
+      const searchTerm = sanitizeSearch(search);
+      const normalizedId = searchTerm.replace(/^sale-/i, '');
+      const parsedSaleId = /^\d+$/.test(normalizedId) ? parseInt(normalizedId, 10) : null;
+
+      filters.push({
+        OR: [
+          ...(parsedSaleId ? [{ sale_id: parsedSaleId }] : []),
+          { remarks: { contains: searchTerm, mode: 'insensitive' } },
+          { payment_method: { contains: searchTerm, mode: 'insensitive' } },
+          {
+            customers: {
+              is: {
+                customer_name: { contains: searchTerm, mode: 'insensitive' }
+              }
+            }
+          },
+          {
+            employees: {
+              is: {
+                employee_name: { contains: searchTerm, mode: 'insensitive' }
+              }
+            }
+          }
+        ]
+      });
+    }
+
+    if (filters.length > 0) {
+      where.AND = filters;
+    }
     
     const [sales, total] = await Promise.all([
       prisma.sales.findMany({
@@ -91,10 +134,10 @@ async function createSale(req, res) {
     processType,
     delivery,
     items, // Array of { productId, quantity, unitPrice, discount }
-    discount = 0,
-    tax = 0,
     amountPaid,
     paymentMethod, // CASH, CREDIT, MIXED
+    cashAmount,
+    onlineAmount,
     notes
   } = req.body;
   
@@ -109,6 +152,8 @@ async function createSale(req, res) {
   try {
     // Use transaction to ensure ACID compliance
     const result = await prisma.$transaction(async (tx) => {
+      await assertBusinessDayOpen(tx);
+
       // Calculate totals
       let subtotal = 0;
       const saleDetails = [];
@@ -165,6 +210,17 @@ async function createSale(req, res) {
       
       const totalAmount = subtotal;
       const paidAmount = amountPaid || totalAmount;
+      const normalizedPaymentMethod = paymentMethod || 'CASH';
+      const resolvedCashAmount =
+        normalizedPaymentMethod === 'CASH'
+          ? paidAmount
+          : normalizedPaymentMethod === 'MIXED'
+            ? Math.max(0, Number(cashAmount || 0))
+            : 0;
+      const resolvedOnlineAmount =
+        normalizedPaymentMethod === 'MIXED'
+          ? Math.max(0, Number(onlineAmount ?? (paidAmount - resolvedCashAmount)))
+          : 0;
       
       // Determine sale status
       let saleStatus = 'PAID';
@@ -182,7 +238,9 @@ async function createSale(req, res) {
           remarks: notes || null,
           total_amount: totalAmount,
           amount_paid: paidAmount,
-          payment_method: paymentMethod || 'CASH',
+          cash_amount: resolvedCashAmount,
+          online_amount: resolvedOnlineAmount,
+          payment_method: normalizedPaymentMethod,
           sale_status: saleStatus,
           sale_details: {
             create: saleDetails
@@ -282,7 +340,8 @@ async function createSale(req, res) {
           transaction_type: 'SALE',
           account_name: customerId ? `Customer #${customerId}` : 'Walk-in',
           amount: totalAmount,
-          remarks: notes ? `Sale #${sale.sale_id} - ${notes}` : `Sale #${sale.sale_id}`
+          remarks: notes ? `Sale #${sale.sale_id} - ${notes}` : `Sale #${sale.sale_id}`,
+          fund_source: normalizedPaymentMethod
         }
       });
       
@@ -299,6 +358,8 @@ async function createSale(req, res) {
       },
       total_amount: parseDecimal(result.total_amount),
       amount_paid: parseDecimal(result.amount_paid),
+      cash_amount: parseDecimal(result.cash_amount),
+      online_amount: parseDecimal(result.online_amount),
       sale_details: result.sale_details.map(detail => ({
         ...detail,
         unit_price: parseDecimal(detail.unit_price),
@@ -320,6 +381,6 @@ async function createSale(req, res) {
 }
 
 export default apiHandler({
-  GET: withCashier(getSales),
+  GET: withClerk(getSales),
   POST: withCashier(createSale)
 });

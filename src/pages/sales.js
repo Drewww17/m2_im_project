@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import useDebouncedValue from '@/hooks/useDebouncedValue';
 import toast from 'react-hot-toast';
 import { MagnifyingGlassIcon, XMarkIcon, EyeIcon, ReceiptRefundIcon } from '@heroicons/react/24/outline';
-import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils';
+import { formatCurrency, formatDateTime } from '@/lib/utils';
 
 export default function Sales() {
   const [sales, setSales] = useState([]);
@@ -16,17 +17,16 @@ export default function Sales() {
     search: ''
   });
 
-  useEffect(() => {
-    fetchSales();
-  }, []);
+  const debouncedSearch = useDebouncedValue(filters.search.trim(), 300);
+  const activeSearch = filters.search.trim() ? debouncedSearch : '';
 
-  const fetchSales = async () => {
+  const fetchSales = useCallback(async () => {
     try {
       const params = new URLSearchParams();
       if (filters.startDate) params.append('startDate', filters.startDate);
       if (filters.endDate) params.append('endDate', filters.endDate);
       if (filters.paymentMethod) params.append('paymentMethod', filters.paymentMethod);
-      if (filters.search) params.append('search', filters.search);
+      if (activeSearch) params.append('search', activeSearch);
       
       const res = await fetch(`/api/sales?${params}`);
       const data = await res.json();
@@ -40,14 +40,11 @@ export default function Sales() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters.endDate, filters.paymentMethod, filters.startDate, activeSearch]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchSales();
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [filters]);
+    fetchSales();
+  }, [fetchSales]);
 
   const handleVoid = async (saleId) => {
     if (!confirm('Are you sure you want to void this sale? This action cannot be undone.')) return;

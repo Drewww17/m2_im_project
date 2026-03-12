@@ -3,7 +3,7 @@
  * Supplier management
  */
 import prisma from '@/lib/prisma';
-import { withClerk, withManager, apiHandler } from '@/middleware/withAuth';
+import { withClerk, apiHandler } from '@/middleware/withAuth';
 import { paginate, paginationMeta, sanitizeSearch, parseDecimal } from '@/lib/utils';
 
 /**
@@ -20,8 +20,8 @@ async function getSuppliers(req, res) {
     if (search) {
       const searchTerm = sanitizeSearch(search);
       where.OR = [
-        { supplier_name: { contains: searchTerm } },
-        { contact_number: { contains: searchTerm } }
+        { supplier_name: { contains: searchTerm, mode: 'insensitive' } },
+        { contact_number: { contains: searchTerm, mode: 'insensitive' } }
       ];
     }
     

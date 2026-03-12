@@ -6,6 +6,7 @@
 import prisma from '@/lib/prisma';
 import { withClerk, apiHandler } from '@/middleware/withAuth';
 import { paginate, paginationMeta, parseDecimal } from '@/lib/utils';
+import { assertBusinessDayOpen } from '@/lib/businessDay';
 
 /**
  * GET /api/purchase-orders
@@ -96,6 +97,8 @@ async function createPurchaseOrder(req, res) {
   
   try {
     const result = await prisma.$transaction(async (tx) => {
+      await assertBusinessDayOpen(tx);
+
       const orderDetails = [];
       
       for (const item of items) {
@@ -149,6 +152,17 @@ async function createPurchaseOrder(req, res) {
           debit: outstandingBalance,
           credit: 0,
           created_at: new Date()
+        }
+      });
+
+      await tx.agrivet_transactions.create({
+        data: {
+          ref_id: `PO-${order.po_id}`,
+          transaction_date: new Date(),
+          transaction_type: 'PURCHASE_ORDER',
+          account_name: order.customers?.customer_name || `Customer #${customerId}`,
+          amount: outstandingBalance,
+          remarks: remarks || `Purchase order #${order.po_id}`
         }
       });
       

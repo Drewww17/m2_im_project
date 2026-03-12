@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import toast from 'react-hot-toast';
 import { 
@@ -9,6 +9,20 @@ import {
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { formatCurrency, formatDate } from '@/lib/utils';
+
+function createOrderItem() {
+  return { productId: '', quantity: '' };
+}
+
+function createInitialOrderForm() {
+  return {
+    customerId: '',
+    remarks: '',
+    outstandingBalance: '',
+    priority: 'NORMAL',
+    items: [createOrderItem()]
+  };
+}
 
 export default function PurchaseOrders() {
   const [orders, setOrders] = useState([]);
@@ -22,31 +36,20 @@ export default function PurchaseOrders() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [filters, setFilters] = useState({
     poStatus: '',
-    customerId: ''
+    customerId: '',
+    priority: ''
   });
 
-  const [createForm, setCreateForm] = useState({
-    customerId: '',
-    remarks: '',
-    outstandingBalance: '',
-    priority: 'NORMAL',
-    items: [{ productId: '', quantity: '' }]
-  });
+  const [createForm, setCreateForm] = useState(createInitialOrderForm);
 
   const [receiveForm, setReceiveForm] = useState({
     items: [],
     remarks: ''
   });
 
-  useEffect(() => {
-    fetchOrders();
-    fetchRestockAlerts();
-    fetchCustomers();
-    fetchProducts();
-  }, []);
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
+      setLoading(true);
       const params = new URLSearchParams();
       if (filters.poStatus) params.append('poStatus', filters.poStatus);
       if (filters.customerId) params.append('customerId', filters.customerId);
@@ -64,9 +67,9 @@ export default function PurchaseOrders() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters.customerId, filters.poStatus, filters.priority]);
 
-  const fetchRestockAlerts = async () => {
+  const fetchRestockAlerts = useCallback(async () => {
     try {
       const res = await fetch('/api/purchase-orders/restock-alerts');
       const data = await res.json();
@@ -76,9 +79,9 @@ export default function PurchaseOrders() {
     } catch (error) {
       console.error('Failed to fetch restock alerts');
     }
-  };
+  }, []);
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
     try {
       const res = await fetch('/api/customers');
       const data = await res.json();
@@ -88,9 +91,9 @@ export default function PurchaseOrders() {
     } catch (error) {
       console.error('Failed to fetch customers');
     }
-  };
+  }, []);
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
       const res = await fetch('/api/products?pageSize=100');
       const data = await res.json();
@@ -100,14 +103,33 @@ export default function PurchaseOrders() {
     } catch (error) {
       console.error('Failed to fetch products');
     }
-  };
+  }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchOrders();
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [filters]);
+    fetchOrders();
+  }, [fetchOrders]);
+
+  useEffect(() => {
+    fetchRestockAlerts();
+    fetchCustomers();
+    fetchProducts();
+  }, [fetchCustomers, fetchProducts, fetchRestockAlerts]);
+
+  const fetchOrderDetails = useCallback(async (poId) => {
+    try {
+      const res = await fetch(`/api/purchase-orders/${poId}`);
+      const data = await res.json();
+      if (res.ok) {
+        return data.order;
+      }
+
+      toast.error(data.error);
+      return null;
+    } catch (error) {
+      toast.error('Failed to fetch order details');
+      return null;
+    }
+  }, []);
 
   const handleCreateOrder = async (e) => {
     e.preventDefault();
@@ -137,13 +159,7 @@ export default function PurchaseOrders() {
       if (res.ok) {
         toast.success('Purchase order created!');
         setShowCreateModal(false);
-        setCreateForm({
-          customerId: '',
-          remarks: '',
-          outstandingBalance: '',
-          priority: 'NORMAL',
-          items: [{ productId: '', quantity: '' }]
-        });
+        setCreateForm(createInitialOrderForm());
         fetchOrders();
       } else {
         toast.error(data.error);
@@ -212,48 +228,34 @@ export default function PurchaseOrders() {
   };
 
   const openDetailModal = async (poId) => {
-    try {
-      const res = await fetch(`/api/purchase-orders/${poId}`);
-      const data = await res.json();
-      if (res.ok) {
-        setSelectedOrder(data.order);
-        setShowDetailModal(true);
-      } else {
-        toast.error(data.error);
-      }
-    } catch (error) {
-      toast.error('Failed to fetch order details');
-    }
+    const order = await fetchOrderDetails(poId);
+    if (!order) return;
+
+    setSelectedOrder(order);
+    setShowDetailModal(true);
   };
 
   const openReceiveModal = async (poId) => {
-    try {
-      const res = await fetch(`/api/purchase-orders/${poId}`);
-      const data = await res.json();
-      if (res.ok) {
-        setSelectedOrder(data.order);
-        setReceiveForm({
-          remarks: '',
-          items: (data.order.purchase_order_details || []).map(item => ({
-            poDetailId: item.po_detail_id,
-            productName: item.products?.product_name || 'Unknown Product',
-            quantityOrdered: item.quantity || 0,
-            quantity: item.quantity || 0
-          }))
-        });
-        setShowReceiveModal(true);
-      } else {
-        toast.error(data.error);
-      }
-    } catch (error) {
-      toast.error('Failed to fetch order details');
-    }
+    const order = await fetchOrderDetails(poId);
+    if (!order) return;
+
+    setSelectedOrder(order);
+    setReceiveForm({
+      remarks: '',
+      items: (order.purchase_order_details || []).map(item => ({
+        poDetailId: item.po_detail_id,
+        productName: item.products?.product_name || 'Unknown Product',
+        quantityOrdered: item.quantity || 0,
+        quantity: item.quantity || 0
+      }))
+    });
+    setShowReceiveModal(true);
   };
 
   const addItem = () => {
     setCreateForm({
       ...createForm,
-      items: [...createForm.items, { productId: '', quantity: '' }]
+      items: [...createForm.items, createOrderItem()]
     });
   };
 

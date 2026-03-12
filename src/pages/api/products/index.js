@@ -21,14 +21,14 @@ async function getProducts(req, res) {
     if (search) {
       const searchTerm = sanitizeSearch(search);
       where.OR = [
-        { product_name: { contains: searchTerm } },
-        { product_code: { contains: searchTerm } },
-        { barcode: { contains: searchTerm } }
+        { product_name: { contains: searchTerm, mode: 'insensitive' } },
+        { product_code: { contains: searchTerm, mode: 'insensitive' } },
+        { barcode: { contains: searchTerm, mode: 'insensitive' } }
       ];
     }
     
     if (barcode) {
-      where.barcode = barcode;
+      where.barcode = { equals: barcode, mode: 'insensitive' };
     }
     
     if (category) {
@@ -124,7 +124,12 @@ async function createProduct(req, res) {
   try {
     // Check for duplicate product name
     const existing = await prisma.products.findFirst({
-      where: { product_name: productName }
+      where: {
+        product_name: {
+          equals: productName,
+          mode: 'insensitive'
+        }
+      }
     });
     
     if (existing) {

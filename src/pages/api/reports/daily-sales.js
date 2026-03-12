@@ -36,17 +36,20 @@ async function getDailySalesReport(req, res) {
           }
         }
       },
-      orderBy: { sale_date: 'asc' }
+      orderBy: { created_at: 'asc' }
     });
     
     // Format sales
     const formattedSales = sales.map(sale => ({
       sale_id: sale.sale_id,
       sale_date: sale.sale_date,
+      created_at: sale.created_at,
       customer: sale.customers?.customer_name || 'Walk-in',
       cashier: sale.employees?.employee_name || 'Unknown',
       total_amount: parseDecimal(sale.total_amount),
       amount_paid: parseDecimal(sale.amount_paid),
+      cash_amount: parseDecimal(sale.cash_amount),
+      online_amount: parseDecimal(sale.online_amount),
       payment_method: sale.payment_method,
       sale_status: sale.sale_status,
       items: sale.sale_details.map(d => ({
@@ -63,9 +66,24 @@ async function getDailySalesReport(req, res) {
       date: reportDate.toISOString().split('T')[0],
       total_transactions: sales.length,
       total_sales: sales.reduce((sum, s) => sum + parseDecimal(s.total_amount), 0),
-      cash_received: sales
-        .filter(s => s.payment_method === 'CASH' || s.payment_method === 'MIXED')
-        .reduce((sum, s) => sum + parseDecimal(s.amount_paid), 0),
+      cash_received: sales.reduce((sum, sale) => {
+        if (sale.payment_method === 'CASH') {
+          return sum + parseDecimal(sale.amount_paid);
+        }
+
+        if (sale.payment_method === 'MIXED') {
+          return sum + parseDecimal(sale.cash_amount);
+        }
+
+        return sum;
+      }, 0),
+      online_received: sales.reduce((sum, sale) => {
+        if (sale.payment_method === 'MIXED') {
+          return sum + parseDecimal(sale.online_amount);
+        }
+
+        return sum;
+      }, 0),
       credit_sales: sales
         .filter(s => s.sale_status !== 'PAID')
         .reduce((sum, s) => sum + (parseDecimal(s.total_amount) - parseDecimal(s.amount_paid)), 0)

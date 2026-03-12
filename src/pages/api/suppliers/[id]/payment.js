@@ -4,6 +4,7 @@
 import prisma from '@/lib/prisma';
 import { withClerk, apiHandler } from '@/middleware/withAuth';
 import { parseDecimal } from '@/lib/utils';
+import { assertBusinessDayOpen } from '@/lib/businessDay';
 
 /**
  * POST /api/suppliers/[id]/payment
@@ -23,6 +24,8 @@ async function recordPayment(req, res) {
   
   try {
     const result = await prisma.$transaction(async (tx) => {
+      await assertBusinessDayOpen(tx);
+
       const supplier = await tx.suppliers.findUnique({
         where: { supplier_id: supplierId }
       });
@@ -47,8 +50,21 @@ async function recordPayment(req, res) {
           account_type: 'supplier',
           account_id: supplierId,
           reference_type: 'PAYMENT',
+          reference_id: supplierId,
           credit: paymentAmount,
           debit: 0
+        }
+      });
+
+      await tx.agrivet_transactions.create({
+        data: {
+          ref_id: `SUPPAY-${Date.now()}`,
+          transaction_date: new Date(),
+          transaction_type: 'SUPPLIER_PAYMENT',
+          account_name: supplier.supplier_name || 'Supplier',
+          fund_source: paymentMethod || 'CASH',
+          amount: paymentAmount,
+          remarks: description || 'Supplier payment'
         }
       });
       

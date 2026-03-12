@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import useDebouncedValue from '@/hooks/useDebouncedValue';
 import toast from 'react-hot-toast';
 import { PlusIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
 
 export default function Suppliers() {
   const [suppliers, setSuppliers] = useState([]);
@@ -18,14 +19,13 @@ export default function Suppliers() {
     phone: ''
   });
 
-  useEffect(() => {
-    fetchSuppliers();
-  }, []);
+  const debouncedSearch = useDebouncedValue(search.trim(), 300);
+  const activeSearch = search.trim() ? debouncedSearch : '';
 
-  const fetchSuppliers = async () => {
+  const fetchSuppliers = useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      if (search) params.append('search', search);
+      if (activeSearch) params.append('search', activeSearch);
       
       const res = await fetch(`/api/suppliers?${params}`);
       const data = await res.json();
@@ -39,14 +39,11 @@ export default function Suppliers() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeSearch]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchSuppliers();
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [search]);
+    fetchSuppliers();
+  }, [fetchSuppliers]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

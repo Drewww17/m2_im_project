@@ -3,7 +3,7 @@
  * Stock management, alerts, and inventory views
  */
 import prisma from '@/lib/prisma';
-import { withCashier, withClerk, apiHandler } from '@/middleware/withAuth';
+import { withClerk, apiHandler } from '@/middleware/withAuth';
 import { paginate, paginationMeta, parseDecimal, daysUntilExpiration, isExpiringSoon, isExpired, sanitizeSearch } from '@/lib/utils';
 
 /**
@@ -169,6 +169,6 @@ async function addInventory(req, res) {
 }
 
 export default apiHandler({
-  GET: withCashier(getInventory),
+  GET: withClerk(getInventory),
   POST: withClerk(addInventory)
 });

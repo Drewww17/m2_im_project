@@ -6,6 +6,7 @@
 import prisma from '@/lib/prisma';
 import { withClerk, apiHandler } from '@/middleware/withAuth';
 import { parseDecimal } from '@/lib/utils';
+import { assertBusinessDayOpen } from '@/lib/businessDay';
 
 /**
  * POST /api/purchase-orders/[id]/receive
@@ -27,6 +28,8 @@ async function receiveDelivery(req, res) {
   
   try {
     const result = await prisma.$transaction(async (tx) => {
+      await assertBusinessDayOpen(tx);
+
       const order = await tx.purchase_orders.findUnique({
         where: { po_id: parseInt(id) },
         include: { purchase_order_details: true }
@@ -78,6 +81,17 @@ async function receiveDelivery(req, res) {
         data: {
           po_status: 'RECEIVED',
           remarks: remarks ? `${order.remarks || ''}\n${remarks}`.trim() : order.remarks
+        }
+      });
+
+      await tx.agrivet_transactions.create({
+        data: {
+          ref_id: `PO-RECEIVE-${order.po_id}`,
+          transaction_date: new Date(),
+          transaction_type: 'PO_RECEIPT',
+          account_name: `Purchase Order #${order.po_id}`,
+          amount: order.purchase_order_details.reduce((sum, detail) => sum + (detail.quantity || 0), 0),
+          remarks: remarks || `Received purchase order #${order.po_id}`
         }
       });
       

@@ -17,6 +17,7 @@ const navigation = [
   { name: 'Sales', href: '/sales', icon: 'receipt', roles: ['CLERK', 'MANAGER'] },
   { name: 'Purchase Orders', href: '/purchase-orders', icon: 'document', roles: ['CLERK', 'MANAGER'] },
   { name: 'Reports', href: '/reports', icon: 'report', roles: ['MANAGER'] },
+  { name: 'Users', href: '/users', icon: 'user-group', roles: ['MANAGER'] },
 ];
 
 export default function Layout({ children }) {

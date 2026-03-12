@@ -5,6 +5,7 @@
 import prisma from '@/lib/prisma';
 import { withClerk, apiHandler } from '@/middleware/withAuth';
 import { parseDecimal } from '@/lib/utils';
+import { assertBusinessDayOpen } from '@/lib/businessDay';
 
 /**
  * GET /api/supply/[id]
@@ -95,6 +96,8 @@ async function deleteSupply(req, res) {
     }
     
     await prisma.$transaction(async (tx) => {
+      await assertBusinessDayOpen(tx);
+
       // Reverse inventory changes
       for (const detail of supply.supply_details) {
         const inventory = await tx.inventory.findFirst({
@@ -143,6 +146,17 @@ async function deleteSupply(req, res) {
       // Delete supply
       await tx.supply.delete({
         where: { supply_id: parseInt(id) }
+      });
+
+      await tx.agrivet_transactions.create({
+        data: {
+          ref_id: `SUPPLY-VOID-${id}`,
+          transaction_date: new Date(),
+          transaction_type: 'VOID_SUPPLY',
+          account_name: supply.supplier_id ? `Supplier #${supply.supplier_id}` : 'Supplier',
+          amount: parseDecimal(supply.total),
+          remarks: `Voided supply #${id}`
+        }
       });
     });
     

@@ -1,11 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import { useAuth } from '@/contexts/AuthContext';
+import useDebouncedValue from '@/hooks/useDebouncedValue';
 import toast from 'react-hot-toast';
 import { PlusIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { formatCurrency } from '@/lib/utils';
 
 export default function Products() {
+  const { hasRole } = useAuth();
   const valueToString = (value) => (value === null || value === undefined ? '' : value.toString());
+  const canManageProducts = hasRole('CLERK');
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -24,16 +28,13 @@ export default function Products() {
     reorder_level: '',
     description: ''
   });
+  const debouncedSearch = useDebouncedValue(search.trim(), 300);
+  const activeSearch = search.trim() ? debouncedSearch : '';
 
-  useEffect(() => {
-    fetchProducts();
-    fetchCategories();
-  }, []);
-
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      if (search) params.append('search', search);
+      if (activeSearch) params.append('search', activeSearch);
       if (selectedCategory) params.append('category', selectedCategory);
       
       const res = await fetch(`/api/products?${params}`);
@@ -48,9 +49,9 @@ export default function Products() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeSearch, selectedCategory]);
 
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const res = await fetch('/api/products/categories');
       const data = await res.json();
@@ -60,17 +61,23 @@ export default function Products() {
     } catch (error) {
       console.error('Failed to fetch categories');
     }
-  };
+  }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchProducts();
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [search, selectedCategory]);
+    fetchCategories();
+  }, [fetchCategories]);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!canManageProducts) {
+      toast.error('Cashier accounts can only view and search products');
+      return;
+    }
+
     try {
       const editingId = editingProduct?.product_id || editingProduct?.id;
       const url = editingProduct 
@@ -109,6 +116,11 @@ export default function Products() {
   };
 
   const handleDelete = async (id) => {
+    if (!canManageProducts) {
+      toast.error('Cashier accounts can only view and search products');
+      return;
+    }
+
     if (!confirm('Are you sure you want to delete this product?')) return;
     
     try {
@@ -126,6 +138,11 @@ export default function Products() {
   };
 
   const openEditModal = (product) => {
+    if (!canManageProducts) {
+      toast.error('Cashier accounts can only view and search products');
+      return;
+    }
+
     setEditingProduct(product);
     setFormData({
       name: product.product_name || product.name || '',
@@ -158,14 +175,23 @@ export default function Products() {
     <ProtectedRoute requiredRole="CASHIER">
         <div className="space-y-6">
           <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900">Products</h1>
-            <button
-              onClick={() => { resetForm(); setShowModal(true); }}
-              className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-            >
-              <PlusIcon className="h-5 w-5" />
-              Add Product
-            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Products</h1>
+              {!canManageProducts && (
+                <p className="mt-1 text-sm text-gray-500">
+                  Cashier access is view-only here. Product maintenance stays with clerk and manager accounts.
+                </p>
+              )}
+            </div>
+            {canManageProducts && (
+              <button
+                onClick={() => { resetForm(); setShowModal(true); }}
+                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+              >
+                <PlusIcon className="h-5 w-5" />
+                Add Product
+              </button>
+            )}
           </div>
 
           {/* Filters */}
@@ -204,17 +230,19 @@ export default function Products() {
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cost</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Price</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Stock</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  {canManageProducts && (
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan="8" className="px-6 py-4 text-center text-gray-500">Loading...</td>
+                    <td colSpan={canManageProducts ? 8 : 7} className="px-6 py-4 text-center text-gray-500">Loading...</td>
                   </tr>
                 ) : products.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="px-6 py-4 text-center text-gray-500">No products found</td>
+                    <td colSpan={canManageProducts ? 8 : 7} className="px-6 py-4 text-center text-gray-500">No products found</td>
                   </tr>
                 ) : (
                   products.map(product => (
@@ -253,22 +281,24 @@ export default function Products() {
                           );
                         })()}
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex justify-center gap-2">
-                          <button
-                            onClick={() => openEditModal(product)}
-                            className="p-1 text-blue-600 hover:text-blue-800"
-                          >
-                            <PencilIcon className="h-5 w-5" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(product.product_id || product.id)}
-                            className="p-1 text-red-600 hover:text-red-800"
-                          >
-                            <TrashIcon className="h-5 w-5" />
-                          </button>
-                        </div>
-                      </td>
+                      {canManageProducts && (
+                        <td className="px-6 py-4">
+                          <div className="flex justify-center gap-2">
+                            <button
+                              onClick={() => openEditModal(product)}
+                              className="p-1 text-blue-600 hover:text-blue-800"
+                            >
+                              <PencilIcon className="h-5 w-5" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(product.product_id || product.id)}
+                              className="p-1 text-red-600 hover:text-red-800"
+                            >
+                              <TrashIcon className="h-5 w-5" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))
                 )}
@@ -278,7 +308,7 @@ export default function Products() {
         </div>
 
         {/* Modal */}
-        {showModal && (
+        {showModal && canManageProducts && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
               <h2 className="text-xl font-bold mb-4">

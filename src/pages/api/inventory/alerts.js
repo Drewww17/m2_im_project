@@ -3,7 +3,7 @@
  * Get low stock and expiring product alerts
  */
 import prisma from '@/lib/prisma';
-import { withCashier, apiHandler } from '@/middleware/withAuth';
+import { withClerk, apiHandler } from '@/middleware/withAuth';
 import { parseDecimal, daysUntilExpiration } from '@/lib/utils';
 
 async function getAlerts(req, res) {
@@ -129,5 +129,5 @@ async function getAlerts(req, res) {
 }
 
 export default apiHandler({
-  GET: withCashier(getAlerts)
+  GET: withClerk(getAlerts)
 });

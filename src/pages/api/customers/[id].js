@@ -3,7 +3,7 @@
  * Get, update, and delete individual customers
  */
 import prisma from '@/lib/prisma';
-import { withCashier, withClerk, withManager, apiHandler } from '@/middleware/withAuth';
+import { withClerk, withManager, apiHandler } from '@/middleware/withAuth';
 import { parseDecimal } from '@/lib/utils';
 
 /**
@@ -126,7 +126,7 @@ async function deleteCustomer(req, res) {
 }
 
 export default apiHandler({
-  GET: withCashier(getCustomer),
+  GET: withClerk(getCustomer),
   PUT: withClerk(updateCustomer),
   DELETE: withManager(deleteCustomer)
 });

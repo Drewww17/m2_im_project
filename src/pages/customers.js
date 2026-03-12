@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import useDebouncedValue from '@/hooks/useDebouncedValue';
 import toast from 'react-hot-toast';
 import { PlusIcon, PencilIcon, TrashIcon, MagnifyingGlassIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
 
 export default function Customers() {
   const [customers, setCustomers] = useState([]);
@@ -20,14 +21,13 @@ export default function Customers() {
     customer_type: 'WALK_IN'
   });
 
-  useEffect(() => {
-    fetchCustomers();
-  }, []);
+  const debouncedSearch = useDebouncedValue(search.trim(), 300);
+  const activeSearch = search.trim() ? debouncedSearch : '';
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      if (search) params.append('search', search);
+      if (activeSearch) params.append('search', activeSearch);
       
       const res = await fetch(`/api/customers?${params}`);
       const data = await res.json();
@@ -41,14 +41,11 @@ export default function Customers() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeSearch]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchCustomers();
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [search]);
+    fetchCustomers();
+  }, [fetchCustomers]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

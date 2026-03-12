@@ -41,9 +41,17 @@ async function getTodaySales(req, res) {
     const summary = {
       totalSales: sales.length,
       totalRevenue: sales.reduce((sum, s) => sum + parseDecimal(s.total_amount), 0),
-      totalCash: sales
-        .filter(s => s.payment_method === 'CASH')
-        .reduce((sum, s) => sum + parseDecimal(s.amount_paid), 0),
+      totalCash: sales.reduce((sum, sale) => {
+        if (sale.payment_method === 'CASH') {
+          return sum + parseDecimal(sale.amount_paid);
+        }
+
+        if (sale.payment_method === 'MIXED') {
+          return sum + parseDecimal(sale.cash_amount);
+        }
+
+        return sum;
+      }, 0),
       totalCredit: sales
         .filter(s => s.payment_method === 'CREDIT' || s.sale_status !== 'PAID')
         .reduce((sum, s) => sum + (parseDecimal(s.total_amount) - parseDecimal(s.amount_paid)), 0),
