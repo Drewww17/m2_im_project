@@ -7,6 +7,7 @@ import prisma from '@/lib/prisma';
 import { withCashier, withClerk, apiHandler } from '@/middleware/withAuth';
 import { paginate, paginationMeta, parseDecimal, sanitizeSearch } from '@/lib/utils';
 import { assertBusinessDayOpen } from '@/lib/businessDay';
+import { assertCustomerCanCarryBalance, getCustomerExposure } from '@/lib/customerAccounts';
 
 /**
  * GET /api/sales
@@ -209,7 +210,7 @@ async function createSale(req, res) {
       }
       
       const totalAmount = subtotal;
-      const paidAmount = amountPaid || totalAmount;
+      const paidAmount = amountPaid ?? totalAmount;
       const normalizedPaymentMethod = paymentMethod || 'CASH';
       const resolvedCashAmount =
         normalizedPaymentMethod === 'CASH'
@@ -226,6 +227,23 @@ async function createSale(req, res) {
       let saleStatus = 'PAID';
       if (paidAmount < totalAmount) {
         saleStatus = paidAmount > 0 ? 'PARTIAL' : 'UNPAID';
+      }
+
+      const creditAmount = Math.max(0, totalAmount - paidAmount);
+      const customerProfile = customerId ? await getCustomerExposure(tx, customerId) : null;
+
+      if (customerId && customerProfile.customer.is_active === false) {
+        throw new Error('Selected customer is inactive');
+      }
+
+      if (creditAmount > 0) {
+        if (!customerProfile) {
+          throw new Error('Select a VIP customer for credit or partially paid sales');
+        }
+
+        assertCustomerCanCarryBalance(customerProfile.customer, creditAmount, {
+          currentExposure: customerProfile.totalExposure
+        });
       }
       
       // Create the sale
@@ -306,9 +324,7 @@ async function createSale(req, res) {
       }
       
       // If customer exists and has outstanding balance (credit sale)
-      if (customerId && saleStatus !== 'PAID') {
-        const creditAmount = totalAmount - paidAmount;
-        
+      if (customerId && creditAmount > 0) {
         // Update customer credit balance
         await tx.customers.update({
           where: { customer_id: customerId },
@@ -338,7 +354,7 @@ async function createSale(req, res) {
           ref_id: String(sale.sale_id),
           transaction_date: new Date(),
           transaction_type: 'SALE',
-          account_name: customerId ? `Customer #${customerId}` : 'Walk-in',
+          account_name: customerProfile?.customer?.customer_name || (customerId ? `Customer #${customerId}` : 'Walk-in'),
           amount: totalAmount,
           remarks: notes ? `Sale #${sale.sale_id} - ${notes}` : `Sale #${sale.sale_id}`,
           fund_source: normalizedPaymentMethod

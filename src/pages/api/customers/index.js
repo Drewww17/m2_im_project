@@ -5,6 +5,7 @@
 import prisma from '@/lib/prisma';
 import { withCashier, withClerk, apiHandler } from '@/middleware/withAuth';
 import { paginate, paginationMeta, sanitizeSearch, parseDecimal } from '@/lib/utils';
+import { normalizeCreditLimit, normalizeCustomerType } from '@/lib/customerAccounts';
 
 /**
  * GET /api/customers
@@ -90,12 +91,22 @@ async function createCustomer(req, res) {
   }
   
   try {
+    const normalizedType = normalizeCustomerType(customerType);
+    const requestedLimit = parseDecimal(creditLimit);
+
+    if (normalizedType !== 'VIP' && requestedLimit > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Only VIP customers can have a credit limit or account balance'
+      });
+    }
+
     const customer = await prisma.customers.create({
       data: {
         customer_name: customerName,
-        customer_type: customerType || 'WALK_IN',
+        customer_type: normalizedType,
         contact_number: phone || null,
-        credit_limit: creditLimit || 0,
+        credit_limit: normalizeCreditLimit(normalizedType, creditLimit),
         credit_balance: 0
       }
     });

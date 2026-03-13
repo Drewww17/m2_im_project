@@ -109,6 +109,18 @@ async function createSupply(req, res) {
     const supply = await prisma.$transaction(async (tx) => {
       await assertBusinessDayOpen(tx);
 
+      const supplier = await tx.suppliers.findUnique({
+        where: { supplier_id: parseInt(supplierId) },
+        select: {
+          supplier_id: true,
+          supplier_name: true
+        }
+      });
+
+      if (!supplier) {
+        throw new Error('Supplier not found');
+      }
+
       // Create supply record
       const newSupply = await tx.supply.create({
         data: {
@@ -177,12 +189,23 @@ async function createSupply(req, res) {
         }
       });
 
+      await tx.account_ledger.create({
+        data: {
+          account_type: 'supplier',
+          account_id: supplier.supplier_id,
+          reference_type: 'SUPPLY',
+          reference_id: newSupply.supply_id,
+          debit: total,
+          credit: 0
+        }
+      });
+
       await tx.agrivet_transactions.create({
         data: {
           ref_id: `SUPPLY-${newSupply.supply_id}`,
           transaction_date: new Date(),
           transaction_type: 'SUPPLY',
-          account_name: `Supplier #${supplierId}`,
+          account_name: supplier.supplier_name,
           amount: total,
           remarks: `Supply record #${newSupply.supply_id}`
         }

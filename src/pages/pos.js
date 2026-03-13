@@ -435,6 +435,11 @@ export default function POSPage() {
       return;
     }
 
+    if (paymentMethod === 'CREDIT' && !selectedCustomer) {
+      toast.error('Select a VIP customer before using credit payment');
+      return;
+    }
+
     if (paymentMethod === 'CASH' && parseFloat(amountTendered || 0) < total) {
       toast.error('Insufficient payment amount');
       return;
@@ -442,8 +447,12 @@ export default function POSPage() {
 
     if (paymentMethod === 'MIXED') {
       const mixedTotal = parseFloat(cashAmount || 0) + parseFloat(onlineAmount || 0);
-      if (mixedTotal < total) {
-        toast.error('Combined cash + online payment is insufficient');
+      if (mixedTotal <= 0) {
+        toast.error('Enter a cash or online amount');
+        return;
+      }
+      if (mixedTotal < total && !selectedCustomer) {
+        toast.error('Select a VIP customer if part of the sale will stay unpaid');
         return;
       }
     }
@@ -668,6 +677,9 @@ export default function POSPage() {
               onChange={(e) => {
                 const customer = customers.find(c => c.customer_id === parseInt(e.target.value));
                 setSelectedCustomer(customer || null);
+                if (!customer && paymentMethod === 'CREDIT') {
+                  setPaymentMethod('CASH');
+                }
               }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
             >
@@ -678,6 +690,9 @@ export default function POSPage() {
                 </option>
               ))}
             </select>
+            <p className="mt-2 text-xs text-amber-700">
+              Only VIP customers can use account balances or unpaid credit.
+            </p>
           </div>
 
           {/* Totals */}
@@ -750,11 +765,20 @@ export default function POSPage() {
               {['CASH', 'CREDIT', 'MIXED'].map(method => (
                 <button
                   key={method}
-                  onClick={() => setPaymentMethod(method)}
+                  onClick={() => {
+                    if (method === 'CREDIT' && !selectedCustomer) {
+                      toast.error('Select a VIP customer first');
+                      return;
+                    }
+                    setPaymentMethod(method);
+                  }}
+                  disabled={method === 'CREDIT' && !selectedCustomer}
                   className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
                     paymentMethod === method
                       ? 'bg-green-600 text-white'
-                      : 'bg-gray-100 text-black hover:bg-gray-200'
+                      : method === 'CREDIT' && !selectedCustomer
+                        ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        : 'bg-gray-100 text-black hover:bg-gray-200'
                   }`}
                 >
                   {method}

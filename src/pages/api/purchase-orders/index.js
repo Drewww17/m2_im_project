@@ -7,6 +7,7 @@ import prisma from '@/lib/prisma';
 import { withClerk, apiHandler } from '@/middleware/withAuth';
 import { paginate, paginationMeta, parseDecimal } from '@/lib/utils';
 import { assertBusinessDayOpen } from '@/lib/businessDay';
+import { assertCustomerCanCarryBalance, getCustomerExposure } from '@/lib/customerAccounts';
 
 /**
  * GET /api/purchase-orders
@@ -98,6 +99,18 @@ async function createPurchaseOrder(req, res) {
   try {
     const result = await prisma.$transaction(async (tx) => {
       await assertBusinessDayOpen(tx);
+      const customerProfile = await getCustomerExposure(tx, customerId);
+      const normalizedOutstandingBalance = Math.max(0, parseDecimal(outstandingBalance));
+
+      if (customerProfile.customer.is_active === false) {
+        throw new Error('Selected customer is inactive');
+      }
+
+      if (normalizedOutstandingBalance > 0) {
+        assertCustomerCanCarryBalance(customerProfile.customer, normalizedOutstandingBalance, {
+          currentExposure: customerProfile.totalExposure
+        });
+      }
 
       const orderDetails = [];
       
@@ -123,7 +136,7 @@ async function createPurchaseOrder(req, res) {
           order_date: new Date(),
           po_status: 'PENDING',
           priority,
-          outstanding_balance: outstandingBalance,
+          outstanding_balance: normalizedOutstandingBalance,
           handled_by: req.user.userId,
           remarks,
           purchase_order_details: {
@@ -149,7 +162,7 @@ async function createPurchaseOrder(req, res) {
           account_id: customerId,
           reference_type: 'PURCHASE_ORDER',
           reference_id: order.po_id,
-          debit: outstandingBalance,
+          debit: normalizedOutstandingBalance,
           credit: 0,
           created_at: new Date()
         }
@@ -160,8 +173,8 @@ async function createPurchaseOrder(req, res) {
           ref_id: `PO-${order.po_id}`,
           transaction_date: new Date(),
           transaction_type: 'PURCHASE_ORDER',
-          account_name: order.customers?.customer_name || `Customer #${customerId}`,
-          amount: outstandingBalance,
+          account_name: order.customers?.customer_name || customerProfile.customer.customer_name || `Customer #${customerId}`,
+          amount: normalizedOutstandingBalance,
           remarks: remarks || `Purchase order #${order.po_id}`
         }
       });

@@ -135,8 +135,16 @@ export default function PurchaseOrders() {
     e.preventDefault();
     try {
       const items = createForm.items.filter(item => item.productId && item.quantity);
+      const selectedOrderCustomer = customers.find(c => c.customer_id === parseInt(createForm.customerId));
+      const outstandingBalance = parseFloat(createForm.outstandingBalance) || 0;
+
       if (items.length === 0) {
         toast.error('Please add at least one item');
+        return;
+      }
+
+      if (outstandingBalance > 0 && selectedOrderCustomer?.customer_type !== 'VIP') {
+        toast.error('Only VIP customers can have an outstanding balance');
         return;
       }
 
@@ -145,7 +153,7 @@ export default function PurchaseOrders() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerId: parseInt(createForm.customerId),
-          outstandingBalance: parseFloat(createForm.outstandingBalance) || 0,
+          outstandingBalance,
           priority: createForm.priority,
           remarks: createForm.remarks,
           items: items.map(item => ({
@@ -472,7 +480,8 @@ export default function PurchaseOrders() {
                       setCreateForm({
                         ...createForm,
                         customerId,
-                        priority: isVip ? 'HIGH' : createForm.priority
+                        priority: isVip ? 'HIGH' : createForm.priority,
+                        outstandingBalance: isVip ? createForm.outstandingBalance : ''
                       });
                     }}
                     className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
@@ -494,11 +503,16 @@ export default function PurchaseOrders() {
                   <input
                     type="number"
                     step="0.01"
+                    min="0"
+                    disabled={customers.find(c => c.customer_id == createForm.customerId)?.customer_type !== 'VIP'}
                     value={createForm.outstandingBalance}
                     onChange={(e) => setCreateForm({ ...createForm, outstandingBalance: e.target.value })}
-                    placeholder="0.00"
-                    className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                    placeholder={customers.find(c => c.customer_id == createForm.customerId)?.customer_type === 'VIP' ? '0.00' : 'VIP only'}
+                    className="mt-1 w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 disabled:bg-gray-100 disabled:text-gray-500"
                   />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Only VIP customers can leave an unpaid balance on a purchase order.
+                  </p>
                 </div>
 
                 <div>

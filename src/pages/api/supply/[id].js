@@ -84,7 +84,13 @@ async function deleteSupply(req, res) {
     const supply = await prisma.supply.findUnique({
       where: { supply_id: parseInt(id) },
       include: {
-        supply_details: true
+        supply_details: true,
+        suppliers: {
+          select: {
+            supplier_id: true,
+            supplier_name: true
+          }
+        }
       }
     });
     
@@ -136,6 +142,17 @@ async function deleteSupply(req, res) {
             payable_balance: { decrement: parseDecimal(supply.total) }
           }
         });
+
+        await tx.account_ledger.create({
+          data: {
+            account_type: 'supplier',
+            account_id: supply.supplier_id,
+            reference_type: 'VOID_SUPPLY',
+            reference_id: supply.supply_id,
+            debit: 0,
+            credit: parseDecimal(supply.total)
+          }
+        });
       }
       
       // Delete supply details
@@ -153,7 +170,7 @@ async function deleteSupply(req, res) {
           ref_id: `SUPPLY-VOID-${id}`,
           transaction_date: new Date(),
           transaction_type: 'VOID_SUPPLY',
-          account_name: supply.supplier_id ? `Supplier #${supply.supplier_id}` : 'Supplier',
+          account_name: supply.suppliers?.supplier_name || (supply.supplier_id ? `Supplier #${supply.supplier_id}` : 'Supplier'),
           amount: parseDecimal(supply.total),
           remarks: `Voided supply #${id}`
         }

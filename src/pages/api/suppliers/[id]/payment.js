@@ -14,8 +14,9 @@ async function recordPayment(req, res) {
   const { id } = req.query;
   const { amount, paymentMethod, description } = req.body;
   const supplierId = parseInt(id);
+  const requestedAmount = parseFloat(amount);
   
-  if (!amount || amount <= 0) {
+  if (!requestedAmount || requestedAmount <= 0) {
     return res.status(400).json({
       success: false,
       error: 'Valid payment amount is required'
@@ -35,7 +36,15 @@ async function recordPayment(req, res) {
       }
       
       const currentBalance = parseDecimal(supplier.payable_balance);
-      const paymentAmount = Math.min(parseFloat(amount), currentBalance);
+      if (currentBalance <= 0) {
+        throw new Error('This supplier has no outstanding balance');
+      }
+
+      if (requestedAmount > currentBalance) {
+        throw new Error('Payment exceeds the outstanding balance');
+      }
+
+      const paymentAmount = requestedAmount;
       const newBalance = currentBalance - paymentAmount;
       
       // Update supplier balance
@@ -62,9 +71,9 @@ async function recordPayment(req, res) {
           transaction_date: new Date(),
           transaction_type: 'SUPPLIER_PAYMENT',
           account_name: supplier.supplier_name || 'Supplier',
-          fund_source: paymentMethod || 'CASH',
+          fund_source: (paymentMethod || 'CASH').toUpperCase(),
           amount: paymentAmount,
-          remarks: description || 'Supplier payment'
+          remarks: description?.trim() || 'Supplier payment'
         }
       });
       

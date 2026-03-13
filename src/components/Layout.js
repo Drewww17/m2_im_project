@@ -6,6 +6,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '@/contexts/AuthContext';
+import BrandLogo from './BrandLogo';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: 'chart', roles: ['MANAGER'] },
@@ -52,8 +53,12 @@ export default function Layout({ children }) {
       <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-slate-800 transform transition-transform duration-300 ease-in-out lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center justify-center h-16 bg-slate-900">
-            <h1 className="text-xl font-bold text-white">AgriVet POS</h1>
+          <div className="flex items-center justify-center h-20 bg-slate-900 px-4">
+            <BrandLogo
+              size={60}
+              showText={false}
+              className="items-center justify-center"
+            />
           </div>
 
           {/* Navigation */}
